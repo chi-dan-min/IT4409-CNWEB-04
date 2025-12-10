@@ -17,7 +17,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 import UserManagementPage from "./pages/UserManagementPage"; // <-- Import trang quản lý người dùng
-import './app.css';
+import "./app.css";
 
 const queryClient = new QueryClient();
 
@@ -32,20 +32,80 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          
+
           {/* Main App Routes - with Layout */}
-          <Route path="/" element={<Layout><Index /></Layout>} />
-          <Route path="/shopping-list" element={<Layout><ShoppingList /></Layout>} />
-          <Route path="/fridge" element={<Layout><Fridge /></Layout>} />
-          <Route path="/meal-plan" element={<Layout><MealPlan /></Layout>} />
-          <Route path="/recipes" element={<Layout><Recipes /></Layout>} />
-          <Route path="/reports" element={<Layout><Reports /></Layout>} />
-          <Route path="/family" element={<Layout><Family /></Layout>} />
-          <Route path="/settings" element={<Layout><Settings /></Layout>} />
-          {/* Cập nhật route /users để sử dụng UserManagementPage */}
-          <Route path="/users" element={<Layout><UserManagementPage /></Layout>} /> 
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route
+            path="/"
+            element={
+              <Layout>
+                <Index />
+              </Layout>
+            }
+          />
+          <Route
+            path="/shopping-list"
+            element={
+              <Layout>
+                <ShoppingList />
+              </Layout>
+            }
+          />
+          <Route
+            path="/fridge"
+            element={
+              <Layout>
+                <Fridge />
+              </Layout>
+            }
+          />
+          <Route
+            path="/meal-plan"
+            element={
+              <Layout>
+                <MealPlan />
+              </Layout>
+            }
+          />
+          <Route
+            path="/recipes"
+            element={
+              <Layout>
+                <Recipes />
+              </Layout>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <Layout>
+                <Reports />
+              </Layout>
+            }
+          />
+          <Route
+            path="/family"
+            element={
+              <Layout>
+                <Family />
+              </Layout>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <Layout>
+                <Settings />
+              </Layout>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <Layout>
+                <UserManagementPage />
+              </Layout>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

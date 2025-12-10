@@ -1,177 +1,188 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Users, Calendar, ShoppingCart, Loader2, AlertTriangle } from "lucide-react"; // Thêm Loader2
+import { useState } from "react";
+// ⭐️ Import React Query hooks
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"; // ⭐️ Sửa lỗi: Import Card components riêng lẻ
+import { Button } from "@/components/ui/button"; // ⭐️ Sửa lỗi: Import Button
+import { Input } from "@/components/ui/input"; // ⭐️ Sửa lỗi: Import Input
+import { Label } from "@/components/ui/label"; // ⭐️ Sửa lỗi: Import Label
+import { Checkbox } from "@/components/ui/checkbox"; // ⭐️ Sửa lỗi: Import Checkbox
+import { Badge } from "@/components/ui/badge"; // ⭐️ Sửa lỗi: Import Badge
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // ⭐️ Sửa lỗi: Import Select components
+import {
+  Plus,
+  Trash2,
+  Calendar,
+  ShoppingCart,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import shoppingListService from "@/services/shoppingListService"; // Đây là cách import đúng cho default export
 
-// Định nghĩa kiểu dữ liệu cho Shopping Item
+// Import API service
+import shoppingListService from "@/services/shoppingListService";
+
+// ⭐️ Giữ nguyên kiểu dữ liệu
 interface ShoppingItem {
-  _id?: string; // ID từ MongoDB
+  _id?: string;
   name: string;
-  quantity: number; // Số lượng nên là number
-  unit?: string; // Đơn vị
+  quantity: number;
+  unit?: string;
   category?: string;
-  isPurchased: boolean; // Đã đổi từ 'completed' sang 'isPurchased'
-  // addedBy: string; // Trường này không có trong model của bạn, có thể bỏ
+  isPurchased: boolean;
 }
 
-// Định nghĩa kiểu dữ liệu cho Shopping List (danh sách chứa items)
 interface ShoppingListType {
   _id: string;
   user: string;
   name: string;
-  type: 'daily' | 'weekly';
+  type: "daily" | "weekly";
   items: ShoppingItem[];
   sharedWith: string[];
   createdAt: string;
   updatedAt: string;
 }
 
-const ShoppingList = () => {
-  // State để lưu trữ danh sách mua sắm hiện tại từ API
-  const [currentShoppingList, setCurrentShoppingList] = useState<ShoppingListType | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+// ⭐️ Định nghĩa Query Key
+const SHOPPING_LIST_QUERY_KEY = "primaryShoppingList";
 
-  // State cho item mới
+// Hàm QueryFn: Lấy danh sách chính
+const fetchPrimaryShoppingList = async (): Promise<ShoppingListType | null> => {
+  const lists = await shoppingListService.getShoppingLists();
+  if (lists && lists.length > 0) {
+    return lists[0];
+  }
+  return null;
+};
+
+const ShoppingList = () => {
+  const queryClient = useQueryClient();
+
+  // State cho item mới (Giữ nguyên)
   const [newItem, setNewItem] = useState({
     name: "",
-    quantity: "", // Vẫn để string để người dùng nhập "1 kg", sau đó phân tích
-    unit: "", // Tách unit ra
+    quantity: "",
+    unit: "",
     category: "",
   });
 
-  const categories = ["Rau củ", "Thịt cá", "Đồ khô", "Sữa & trứng", "Gia vị", "Đồ uống", "Khác"];
-  const units = ["cái", "kg", "g", "lít", "ml", "bó", "túi", "hộp", "chai", "thanh", "khác"]; // Thêm các đơn vị phổ biến
+  const categories = [
+    "Rau củ",
+    "Thịt cá",
+    "Đồ khô",
+    "Sữa & trứng",
+    "Gia vị",
+    "Đồ uống",
+    "Khác",
+  ];
+  const units = [
+    "cái",
+    "kg",
+    "g",
+    "lít",
+    "ml",
+    "bó",
+    "túi",
+    "hộp",
+    "chai",
+    "thanh",
+    "khác",
+  ];
 
-  // --- Functions for API Interaction ---
+  // --- 1. QUERY (Lấy dữ liệu) ---
+  const {
+    data: currentShoppingList,
+    isLoading: isLoadingList,
+    error: queryError,
+  } = useQuery<ShoppingListType | null, Error>({
+    queryKey: [SHOPPING_LIST_QUERY_KEY],
+    queryFn: fetchPrimaryShoppingList,
+  });
 
-  // Lấy danh sách mua sắm từ API
-  const fetchShoppingList = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const lists = await shoppingListService.getShoppingLists();
-      // Giả định chúng ta sẽ làm việc với danh sách đầu tiên tìm được
-      // Trong thực tế, bạn sẽ cần UI để người dùng chọn danh sách hoặc tạo mới
-      if (lists && lists.length > 0) {
-        setCurrentShoppingList(lists[0]);
-      } else {
-        // Nếu không có danh sách nào, bạn có thể tạo một danh sách mặc định
-        // hoặc hướng dẫn người dùng tạo mới
-        toast({
-            title: "Chưa có danh sách mua sắm nào.",
-            description: "Hãy tạo một danh sách mới để bắt đầu!",
-            variant: "default"
-        });
-        setCurrentShoppingList(null); // Không có danh sách để hiển thị
-      }
-    } catch (err: any) {
-      console.error("Failed to fetch shopping lists:", err);
-      setError(err.response?.data?.message || "Không thể tải danh sách mua sắm.");
-      toast({
-        title: "Lỗi",
-        description: error || "Không thể tải danh sách mua sắm.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Lấy dữ liệu an toàn
+  const listData = currentShoppingList;
+  const items = listData?.items || [];
+  const completedCount = items.filter((item) => item.isPurchased).length;
+  const totalCount = items.length;
 
-  useEffect(() => {
-    fetchShoppingList();
-  }, []);
+  // --- 2. MUTATION (Cập nhật danh sách trên Backend) ---
+  const updateListMutation = useMutation({
+    mutationFn: (data: { listId: string; items: ShoppingItem[] }) =>
+      shoppingListService.updateShoppingList(data.listId, {
+        items: data.items,
+      }),
 
-  // Cập nhật danh sách trên Backend sau mỗi thay đổi
-  const updateListOnBackend = async (listToUpdate: ShoppingListType) => {
-    if (!listToUpdate || !listToUpdate._id) return; // Đảm bảo có ID danh sách
-
-    setIsLoading(true);
-    try {
-      const updatedList = await shoppingListService.updateShoppingList(listToUpdate._id, {
-        items: listToUpdate.items,
-      });
-      setCurrentShoppingList(updatedList); // Cập nhật state với dữ liệu mới từ backend
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: [SHOPPING_LIST_QUERY_KEY] });
       toast({
         title: "Cập nhật thành công!",
         description: "Danh sách mua sắm đã được lưu.",
         variant: "success",
       });
-    } catch (err: any) {
-      console.error("Failed to update shopping list:", err);
-      setError(err.response?.data?.message || "Không thể cập nhật danh sách mua sắm.");
+    },
+    onError: (error: any) => {
+      console.error("Failed to update shopping list:", error);
       toast({
         title: "Lỗi",
-        description: error || "Không thể cập nhật danh sách mua sắm.",
+        description: error.message || "Không thể cập nhật danh sách mua sắm.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+    },
+  });
+
+  // Hàm Tạo Danh Sách Mới
+  const createNewDefaultList = async (newItem: ShoppingItem) => {
+    try {
+      // Giả định service có hàm createShoppingList
+      const newDefaultList = await shoppingListService.createShoppingList({
+        name: "Danh sách mua sắm của tôi",
+        type: "daily",
+        items: [newItem],
+      });
+      queryClient.invalidateQueries({ queryKey: [SHOPPING_LIST_QUERY_KEY] });
+      toast({
+        title: "Đã tạo danh sách mới!",
+        description: "Danh sách mặc định đã được tạo và thêm sản phẩm.",
+        variant: "success",
+      });
+    } catch (err: any) {
+      console.error("Failed to create new default shopping list:", err);
+      toast({
+        title: "Lỗi",
+        description: err.message || "Không thể tạo danh sách mới.",
+        variant: "destructive",
+      });
     }
   };
 
-
   const addItemToList = async () => {
-    if (!newItem.name || !newItem.quantity || !newItem.unit || !newItem.category) {
+    if (
+      !newItem.name ||
+      !newItem.quantity ||
+      !newItem.unit ||
+      !newItem.category
+    ) {
       toast({
         title: "Thiếu thông tin",
-        description: "Vui lòng điền đủ Tên sản phẩm, Số lượng, Đơn vị và Danh mục.",
+        description:
+          "Vui lòng điền đủ Tên sản phẩm, Số lượng, Đơn vị và Danh mục.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!currentShoppingList) {
-        // Nếu chưa có danh sách nào, tạo một danh sách mới mặc định
-        try {
-            const newDefaultList = await createShoppingList({
-                name: "Danh sách mua sắm của tôi",
-                type: "daily",
-                items: []
-            });
-            setCurrentShoppingList(newDefaultList);
-            toast({
-                title: "Đã tạo danh sách mới!",
-                description: "Danh sách mặc định đã được tạo.",
-                variant: "success"
-            });
-            // Sau khi tạo xong danh sách, thêm item vào nó
-            const quantityNum = parseFloat(newItem.quantity.split(' ')[0]); // Phân tích số lượng từ chuỗi
-            const unitString = newItem.unit; // Đơn vị được chọn trực tiếp
-            const updatedItems = [...newDefaultList.items, {
-                name: newItem.name,
-                quantity: quantityNum,
-                unit: unitString,
-                category: newItem.category,
-                isPurchased: false,
-            }];
-            await updateListOnBackend({ ...newDefaultList, items: updatedItems });
-
-        } catch (err: any) {
-            console.error("Failed to create new default shopping list:", err);
-            toast({
-                title: "Lỗi",
-                description: err.response?.data?.message || "Không thể tạo danh sách mới.",
-                variant: "destructive",
-            });
-            return;
-        } finally {
-            setNewItem({ name: "", quantity: "", unit: "", category: "" }); // Reset form
-        }
-        return; // Đã xử lý xong việc thêm item vào danh sách mới tạo
-    }
-
-    // Nếu đã có danh sách
-    const quantityNum = parseFloat(newItem.quantity.split(' ')[0]); // Giả định số lượng dạng "X đơn vị"
-    const unitString = newItem.unit; // Đơn vị được chọn trực tiếp
-
+    const quantityNum = parseFloat(newItem.quantity);
     if (isNaN(quantityNum) || quantityNum <= 0) {
       toast({
         title: "Số lượng không hợp lệ",
@@ -181,59 +192,84 @@ const ShoppingList = () => {
       return;
     }
 
-    const updatedItems: ShoppingItem[] = [
-      ...currentShoppingList.items,
-      {
-        name: newItem.name,
-        quantity: quantityNum,
-        unit: unitString,
-        category: newItem.category,
-        isPurchased: false,
-      },
-    ];
+    const itemToAdd: ShoppingItem = {
+      name: newItem.name,
+      quantity: quantityNum,
+      unit: newItem.unit,
+      category: newItem.category,
+      isPurchased: false,
+    };
 
-    setNewItem({ name: "", quantity: "", unit: "", category: "" }); // Reset form
+    setNewItem({ name: "", quantity: "", unit: "", category: "" });
 
-    // Cập nhật danh sách trên backend
-    await updateListOnBackend({ ...currentShoppingList, items: updatedItems });
+    if (!listData) {
+      await createNewDefaultList(itemToAdd);
+      return;
+    }
+
+    const updatedItems: ShoppingItem[] = [...items, itemToAdd];
+
+    updateListMutation.mutate({
+      listId: listData._id,
+      items: updatedItems,
+    });
   };
 
   const toggleItemPurchase = async (itemId: string) => {
-    if (!currentShoppingList) return;
+    if (!listData) return;
 
-    const updatedItems = currentShoppingList.items.map(item =>
+    const updatedItems = items.map((item) =>
       item._id === itemId ? { ...item, isPurchased: !item.isPurchased } : item
     );
 
-    await updateListOnBackend({ ...currentShoppingList, items: updatedItems });
+    updateListMutation.mutate({
+      listId: listData._id,
+      items: updatedItems,
+    });
   };
 
   const deleteItemFromList = async (itemId: string) => {
-    if (!currentShoppingList) return;
+    if (!listData) return;
 
-    const updatedItems = currentShoppingList.items.filter(item => item._id !== itemId);
+    const updatedItems = items.filter((item) => item._id !== itemId);
 
-    await updateListOnBackend({ ...currentShoppingList, items: updatedItems });
+    updateListMutation.mutate({
+      listId: listData._id,
+      items: updatedItems,
+    });
   };
 
-  const completedCount = currentShoppingList ? currentShoppingList.items.filter(item => item.isPurchased).length : 0;
-  const totalCount = currentShoppingList ? currentShoppingList.items.length : 0;
+  const isMutating = updateListMutation.isPending;
 
-  if (isLoading) {
+  if (isLoadingList) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="ml-3 text-lg text-gray-700">Đang tải danh sách mua sắm...</p>
+        <p className="ml-3 text-lg text-gray-700">
+          Đang tải danh sách mua sắm...
+        </p>
       </div>
     );
   }
 
-  if (error) {
+  if (queryError) {
     return (
       <div className="text-center py-12 text-red-500">
         <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
-        <p className="text-xl">Đã xảy ra lỗi: {error}</p>
-        <Button onClick={fetchShoppingList} className="mt-4">Thử lại</Button>
+        <p className="text-xl">
+          Đã xảy ra lỗi:{" "}
+          {queryError.message || "Không thể tải danh sách mua sắm."}
+        </p>
+        <Button
+          onClick={() =>
+            queryClient.invalidateQueries({
+              queryKey: [SHOPPING_LIST_QUERY_KEY],
+            })
+          }
+          className="mt-4"
+        >
+          Thử lại
+        </Button>
       </div>
     );
   }
@@ -262,15 +298,22 @@ const ShoppingList = () => {
             </div>
             <div className="text-right">
               <div className="text-3xl font-bold text-primary">
-                {totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}%
+                {totalCount > 0
+                  ? Math.round((completedCount / totalCount) * 100)
+                  : 0}
+                %
               </div>
               <div className="text-sm text-gray-500">Hoàn thành</div>
             </div>
           </div>
           <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
-            <div 
+            <div
               className="bg-primary h-2 rounded-full transition-all duration-300"
-              style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
+              style={{
+                width: `${
+                  totalCount > 0 ? (completedCount / totalCount) * 100 : 0
+                }%`,
+              }}
             ></div>
           </div>
         </CardContent>
@@ -288,29 +331,38 @@ const ShoppingList = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"> {/* Sửa grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Tên sản phẩm</Label>
               <Input
                 id="name"
                 placeholder="Ví dụ: Cà chua"
                 value={newItem.name}
-                onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, name: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="quantity">Số lượng</Label> {/* Đã tách quantity và unit */}
+              <Label htmlFor="quantity">Số lượng</Label>
               <Input
                 id="quantity"
-                type="number" // Sử dụng type="number" cho số lượng
+                type="number"
                 placeholder="Ví dụ: 1"
                 value={newItem.quantity}
-                onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, quantity: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="unit">Đơn vị</Label>
-              <Select value={newItem.unit} onValueChange={(value) => setNewItem({ ...newItem, unit: value })}>
+              <Select
+                value={newItem.unit}
+                onValueChange={(value) =>
+                  setNewItem({ ...newItem, unit: value })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn đơn vị" />
                 </SelectTrigger>
@@ -325,7 +377,12 @@ const ShoppingList = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Danh mục</Label>
-              <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
+              <Select
+                value={newItem.category}
+                onValueChange={(value) =>
+                  setNewItem({ ...newItem, category: value })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn danh mục" />
                 </SelectTrigger>
@@ -339,8 +396,16 @@ const ShoppingList = () => {
               </Select>
             </div>
           </div>
-          <Button onClick={addItemToList} className="w-full" disabled={isLoading}>
-            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+          <Button
+            onClick={addItemToList}
+            className="w-full"
+            disabled={isMutating}
+          >
+            {isMutating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-2" />
+            )}
             Thêm vào danh sách
           </Button>
         </CardContent>
@@ -351,8 +416,8 @@ const ShoppingList = () => {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" /> {/* Có thể thay Calendar bằng icon ShoppingBag */}
-              Danh sách hiện tại: {currentShoppingList?.name || "Chưa có tên"}
+              <Calendar className="h-5 w-5" />
+              Danh sách hiện tại: {listData?.name || "Chưa có tên"}
             </span>
             <Badge variant="outline">{totalCount} sản phẩm</Badge>
           </CardTitle>
@@ -366,42 +431,46 @@ const ShoppingList = () => {
                 <p className="text-sm">Hãy thêm sản phẩm đầu tiên của bạn!</p>
               </div>
             ) : (
-              currentShoppingList?.items.map((item) => (
+              items.map((item) => (
                 <div
-                  key={item._id} // Sử dụng _id từ MongoDB
+                  key={item._id}
                   className={`p-4 border rounded-lg transition-all duration-200 ${
-                    item.isPurchased 
-                      ? 'bg-green-50 border-green-200' 
-                      : 'bg-white border-gray-200 hover:shadow-md'
+                    item.isPurchased
+                      ? "bg-green-50 border-green-200"
+                      : "bg-white border-gray-200 hover:shadow-md"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <Checkbox
-                        checked={item.isPurchased} // Đã đổi sang isPurchased
-                        onCheckedChange={() => toggleItemPurchase(item._id!)} // Truyền _id
+                        checked={item.isPurchased}
+                        onCheckedChange={() => toggleItemPurchase(item._id!)}
+                        disabled={isMutating}
                       />
-                      <div className={item.isPurchased ? 'opacity-60' : ''}>
-                        <h4 className={`font-medium ${item.isPurchased ? 'line-through' : ''}`}>
+                      <div className={item.isPurchased ? "opacity-60" : ""}>
+                        <h4
+                          className={`font-medium ${
+                            item.isPurchased ? "line-through" : ""
+                          }`}
+                        >
                           {item.name}
                         </h4>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
-                            {item.category || "Chưa phân loại"} {/* Hiển thị "Chưa phân loại" nếu category null */}
+                            {item.category || "Chưa phân loại"}
                           </Badge>
-                          <span className="text-sm text-gray-600">{item.quantity} {item.unit}</span> {/* Hiển thị cả quantity và unit */}
-                          {/* <span className="text-xs text-gray-500 flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {item.addedBy} // Trường addedBy không có trong model của bạn
-                          </span> */}
+                          <span className="text-sm text-gray-600">
+                            {item.quantity} {item.unit}
+                          </span>
                         </div>
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => deleteItemFromList(item._id!)} // Truyền _id
+                      onClick={() => deleteItemFromList(item._id!)}
                       className="text-red-500 hover:text-red-700"
+                      disabled={isMutating}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

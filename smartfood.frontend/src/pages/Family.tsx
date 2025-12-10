@@ -1,11 +1,25 @@
-import React, { useState, useEffect } from "react"; // <--- Add React here
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, UserPlus, Crown, Settings, Mail, Trash2 } from "lucide-react";
+import {
+  Users,
+  UserPlus,
+  Crown,
+  Settings,
+  Mail,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import familyGroupService from "@/services/familyGroupService";
@@ -16,7 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Import ShoppingListTab component
 import ShoppingListTab from "@/components/ShoppingListTab";
 
-// Định nghĩa kiểu dữ liệu cho thành viên gia đình từ backend
+// Định nghĩa kiểu dữ liệu (Giữ nguyên)
 interface FamilyMember {
   user: {
     _id: string;
@@ -24,17 +38,16 @@ interface FamilyMember {
     email: string;
     avatar?: string;
   };
-  role: 'admin' | 'member'; // Chỉ còn 2 role: admin và member
+  role: "admin" | "member";
   joinedAt: string;
 }
 
-// Định nghĩa kiểu dữ liệu cho FamilyGroup từ backend
 interface FamilyGroupData {
   _id: string;
   name: string;
   owner: string;
   members: FamilyMember[];
-  currentUserRole: 'admin' | 'member' | 'none'; // Đã cập nhật currentUserRole
+  currentUserRole: "admin" | "member" | "none";
   createdAt: string;
   updatedAt: string;
 }
@@ -48,30 +61,32 @@ const Family = () => {
   const [showCreateGroupForm, setShowCreateGroupForm] = useState(false);
   const [activeTab, setActiveTab] = useState("management");
 
-  // Lấy dữ liệu các nhóm gia đình của người dùng
-  const { data: familyGroups, isLoading, isError, error } = useQuery<FamilyGroupData[]>({
-    queryKey: ['familyGroups'],
+  // --- QUERY: Lấy dữ liệu các nhóm gia đình của người dùng ---
+  const {
+    data: familyGroups,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<FamilyGroupData[]>({
+    queryKey: ["familyGroups"],
     queryFn: familyGroupService.getFamilyGroups,
     staleTime: 5 * 60 * 1000,
   });
 
   // Chọn nhóm đầu tiên nếu có, khi dữ liệu được load lần đầu
-  // Sử dụng useEffect để đảm bảo logic này chạy sau khi component đã render
-  // và familyGroups đã có dữ liệu.
-  // Đồng thời, tránh lỗi "setState in render"
-  // (Lưu ý: Bạn có thể cần điều chỉnh logic này nếu có nhiều nhóm và bạn muốn lưu lựa chọn nhóm của người dùng.)
-  React.useEffect(() => {
+  useEffect(() => {
     if (familyGroups && familyGroups.length > 0 && !activeGroupId) {
       setActiveGroupId(familyGroups[0]._id);
     }
-  }, [familyGroups, activeGroupId]); // Thêm activeGroupId vào dependency array
+  }, [familyGroups, activeGroupId]);
 
-  const activeGroup = familyGroups?.find(group => group._id === activeGroupId);
+  const activeGroup = familyGroups?.find(
+    (group) => group._id === activeGroupId
+  );
   const familyMembers = activeGroup ? activeGroup.members : [];
-  // Lấy vai trò của người dùng hiện tại trong nhóm đang hoạt động
-  const currentUserRole = activeGroup ? activeGroup.currentUserRole : 'none';
+  const currentUserRole = activeGroup ? activeGroup.currentUserRole : "none";
 
-  // Mutation để tạo nhóm gia đình mới
+  // --- MUTATION: Tạo nhóm gia đình mới ---
   const createGroupMutation = useMutation({
     mutationFn: familyGroupService.createFamilyGroup,
     onSuccess: (data) => {
@@ -81,21 +96,23 @@ const Family = () => {
       });
       setNewGroupName("");
       setShowCreateGroupForm(false);
-      queryClient.invalidateQueries({ queryKey: ['familyGroups'] });
+      queryClient.invalidateQueries({ queryKey: ["familyGroups"] });
       setActiveGroupId(data.familyGroup._id);
     },
     onError: (err: any) => {
       toast({
         title: "Tạo nhóm thất bại",
-        description: err.response?.data?.message || "Đã có lỗi xảy ra khi tạo nhóm.",
+        description:
+          err.response?.data?.message || "Đã có lỗi xảy ra khi tạo nhóm.",
         variant: "destructive",
       });
     },
   });
 
-  // Mutation để mời thành viên
+  // --- MUTATION: Mời thành viên ---
   const inviteMemberMutation = useMutation({
-    mutationFn: ({ groupId, email }: { groupId: string, email: string }) => familyGroupService.inviteMember(groupId, email),
+    mutationFn: ({ groupId, email }: { groupId: string; email: string }) =>
+      familyGroupService.inviteMember(groupId, email),
     onSuccess: () => {
       toast({
         title: "Đã gửi lời mời",
@@ -103,97 +120,140 @@ const Family = () => {
       });
       setInviteEmail("");
       setShowInviteForm(false);
-      queryClient.invalidateQueries({ queryKey: ['familyGroups'] });
+      queryClient.invalidateQueries({ queryKey: ["familyGroups"] });
     },
     onError: (err: any) => {
       toast({
         title: "Mời thành viên thất bại",
-        description: err.response?.data?.message || "Đã có lỗi xảy ra khi gửi lời mời.",
+        description:
+          err.response?.data?.message || "Đã có lỗi xảy ra khi gửi lời mời.",
         variant: "destructive",
       });
     },
   });
 
-  // Mutation để xóa thành viên
+  // --- MUTATION: Xóa thành viên ---
   const removeMemberMutation = useMutation({
-    mutationFn: ({ groupId, memberId }: { groupId: string, memberId: string }) => familyGroupService.removeMember(groupId, memberId),
+    mutationFn: ({
+      groupId,
+      memberId,
+    }: {
+      groupId: string;
+      memberId: string;
+    }) => familyGroupService.removeMember(groupId, memberId),
     onSuccess: () => {
       toast({
         title: "Đã xóa thành viên",
         description: "Thành viên đã được xóa khỏi nhóm gia đình.",
       });
-      queryClient.invalidateQueries({ queryKey: ['familyGroups'] });
+      queryClient.invalidateQueries({ queryKey: ["familyGroups"] });
     },
     onError: (err: any) => {
       toast({
         title: "Xóa thành viên thất bại",
-        description: err.response?.data?.message || "Đã có lỗi xảy ra khi xóa thành viên.",
+        description:
+          err.response?.data?.message || "Đã có lỗi xảy ra khi xóa thành viên.",
         variant: "destructive",
       });
     },
   });
 
-  // Mutation để cập nhật vai trò thành viên
+  // --- MUTATION: Cập nhật vai trò thành viên ---
   const updateMemberRoleMutation = useMutation({
-    mutationFn: ({ groupId, memberId, role }: { groupId: string, memberId: string, role: 'admin' | 'member' }) =>
-      familyGroupService.updateMemberRole(groupId, memberId, role),
+    mutationFn: ({
+      groupId,
+      memberId,
+      role,
+    }: {
+      groupId: string;
+      memberId: string;
+      role: "admin" | "member";
+    }) => familyGroupService.updateMemberRole(groupId, memberId, role),
     onSuccess: () => {
       toast({
         title: "Cập nhật vai trò thành công",
         description: "Vai trò thành viên đã được cập nhật.",
       });
-      queryClient.invalidateQueries({ queryKey: ['familyGroups'] });
+      queryClient.invalidateQueries({ queryKey: ["familyGroups"] });
     },
     onError: (err: any) => {
       toast({
         title: "Cập nhật vai trò thất bại",
-        description: err.response?.data?.message || "Đã có lỗi xảy ra khi cập nhật vai trò.",
+        description:
+          err.response?.data?.message ||
+          "Đã có lỗi xảy ra khi cập nhật vai trò.",
         variant: "destructive",
       });
     },
   });
 
+  // --- Handlers ---
   const handleCreateGroup = () => {
-    if (newGroupName && createGroupMutation.status !== 'pending') {
+    // Sử dụng createGroupMutation.isPending
+    if (newGroupName && !createGroupMutation.isPending) {
       createGroupMutation.mutate(newGroupName);
     }
   };
 
   const handleSendInvite = () => {
-    if (activeGroupId && inviteEmail && inviteMemberMutation.status !== 'pending') {
-      inviteMemberMutation.mutate({ groupId: activeGroupId, email: inviteEmail });
+    // Sử dụng inviteMemberMutation.isPending
+    if (activeGroupId && inviteEmail && !inviteMemberMutation.isPending) {
+      inviteMemberMutation.mutate({
+        groupId: activeGroupId,
+        email: inviteEmail,
+      });
     }
   };
 
   const handleRemoveMember = (memberId: string) => {
-    if (activeGroupId && removeMemberMutation.status !== 'pending') {
+    // Sử dụng removeMemberMutation.isPending
+    if (activeGroupId && !removeMemberMutation.isPending) {
       removeMemberMutation.mutate({ groupId: activeGroupId, memberId });
     }
   };
 
-  const handleUpdateRole = (memberId: string, currentRole: 'admin' | 'member') => {
-    if (activeGroupId && updateMemberRoleMutation.status !== 'pending') {
-      const newRole = currentRole === 'admin' ? 'member' : 'admin';
-      updateMemberRoleMutation.mutate({ groupId: activeGroupId, memberId, role: newRole });
+  const handleUpdateRole = (
+    memberId: string,
+    currentRole: "admin" | "member"
+  ) => {
+    // Sử dụng updateMemberRoleMutation.isPending
+    if (activeGroupId && !updateMemberRoleMutation.isPending) {
+      const newRole = currentRole === "admin" ? "member" : "admin";
+      updateMemberRoleMutation.mutate({
+        groupId: activeGroupId,
+        memberId,
+        role: newRole,
+      });
     }
   };
 
+  // --- Constants for UI ---
   const roleColors = {
-    admin: "destructive", // Hoặc màu sắc khác bạn muốn cho admin
-    member: "secondary"
+    admin: "destructive",
+    member: "secondary",
   };
 
   const roleLabels = {
     admin: "Quản trị viên",
-    member: "Thành viên"
+    member: "Thành viên",
   };
 
+  // --- Conditional Rendering ---
   if (isLoading) {
-    return <div className="text-center py-8">Đang tải dữ liệu nhóm gia đình...</div>;
+    return (
+      <div className="text-center py-8 flex justify-center items-center gap-2">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        Đang tải dữ liệu nhóm gia đình...
+      </div>
+    );
   }
 
   if (isError) {
-    return <div className="text-center py-8 text-red-500">Lỗi: {error?.message || "Không thể tải dữ liệu nhóm gia đình."}</div>;
+    return (
+      <div className="text-center py-8 text-red-500">
+        Lỗi: {error?.message || "Không thể tải dữ liệu nhóm gia đình."}
+      </div>
+    );
   }
 
   return (
@@ -209,7 +269,12 @@ const Family = () => {
       </div>
 
       {/* Tabs for Management and Shopping List */}
-      <Tabs defaultValue="management" value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs
+        defaultValue="management"
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="w-full"
+      >
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="management">Quản lý nhóm</TabsTrigger>
           <TabsTrigger value="shopping-list">Danh sách mua sắm</TabsTrigger>
@@ -220,17 +285,23 @@ const Family = () => {
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Chọn hoặc tạo nhóm gia đình</CardTitle>
-              <CardDescription>Chọn nhóm bạn muốn quản lý hoặc tạo một nhóm mới.</CardDescription>
+              <CardDescription>
+                Chọn nhóm bạn muốn quản lý hoặc tạo một nhóm mới.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3 mb-4">
-                {familyGroups?.map(group => (
+                {familyGroups?.map((group) => (
                   <Button
                     key={group._id}
-                    variant={activeGroupId === group._id ? "default" : "outline"}
+                    variant={
+                      activeGroupId === group._id ? "default" : "outline"
+                    }
                     onClick={() => setActiveGroupId(group._id)}
                   >
-                    {group.name} {group.owner === "current_user_id" && "(Chủ sở hữu)"}
+                    {group.name}
+                    {/* Giả định bạn có cách để biết ID của người dùng hiện tại,
+                        nhưng vì không có ở đây, chỉ hiển thị tên nhóm */}
                   </Button>
                 ))}
                 <Button
@@ -251,13 +322,21 @@ const Family = () => {
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
                     />
-                    <Button onClick={handleCreateGroup} disabled={createGroupMutation.status === 'pending'}>
-                      {createGroupMutation.status === 'pending' ? 'Đang tạo...' : 'Tạo nhóm'}
+                    <Button
+                      onClick={handleCreateGroup}
+                      disabled={createGroupMutation.isPending}
+                    >
+                      {createGroupMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Tạo nhóm"
+                      )}
                     </Button>
                   </div>
                   {createGroupMutation.isError && (
                     <p className="text-red-500 text-sm">
-                      {createGroupMutation.error?.message || "Lỗi khi tạo nhóm."}
+                      {createGroupMutation.error?.message ||
+                        "Lỗi khi tạo nhóm."}
                     </p>
                   )}
                 </div>
@@ -267,10 +346,12 @@ const Family = () => {
 
           {activeGroup ? (
             <>
-              {/* Family Members List - Hiển thị trước */}
+              {/* Family Members List */}
               <Card className="mb-6">
                 <CardHeader>
-                  <CardTitle>Thành viên của nhóm ({activeGroup.name})</CardTitle>
+                  <CardTitle>
+                    Thành viên của nhóm ({activeGroup.name})
+                  </CardTitle>
                   <CardDescription>
                     Quản lý thông tin và quyền của các thành viên.
                   </CardDescription>
@@ -286,16 +367,23 @@ const Family = () => {
                           <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10">
                               <AvatarFallback className="bg-primary text-white text-sm">
-                                {member.user.avatar || member.user.name?.charAt(0).toUpperCase() || '??'}
+                                {/* Chỉ lấy chữ cái đầu tiên của tên nếu không có avatar */}
+                                {member.user.name?.charAt(0).toUpperCase() ||
+                                  "??"}
                               </AvatarFallback>
                             </Avatar>
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-semibold text-base">{member.user.name}</h4>
-                                <Badge variant={roleColors[member.role] as any} className="px-2 py-0.5 text-xs">
+                                <h4 className="font-semibold text-base">
+                                  {member.user.name}
+                                </h4>
+                                <Badge
+                                  variant={roleColors[member.role] as any}
+                                  className="px-2 py-0.5 text-xs"
+                                >
                                   {roleLabels[member.role]}
                                 </Badge>
-                                {member.role === 'admin' && (
+                                {member.role === "admin" && (
                                   <Crown className="h-4 w-4 text-yellow-600" />
                                 )}
                               </div>
@@ -308,25 +396,47 @@ const Family = () => {
 
                           {/* Actions for members - Chỉ hiển thị nếu currentUserRole là 'admin' */}
                           <div className="flex gap-2">
-                            {currentUserRole === 'admin' && (
+                            {currentUserRole === "admin" && (
                               <>
                                 {/* Nút thay đổi vai trò (admin <-> member) */}
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleUpdateRole(member.user._id, member.role)}
-                                  disabled={updateMemberRoleMutation.status === 'pending' || (member.role === 'admin' && activeGroup.members.filter(m => m.role === 'admin').length === 1)}
+                                  onClick={() =>
+                                    handleUpdateRole(
+                                      member.user._id,
+                                      member.role
+                                    )
+                                  }
+                                  disabled={
+                                    updateMemberRoleMutation.isPending ||
+                                    (member.role === "admin" &&
+                                      activeGroup.members.filter(
+                                        (m) => m.role === "admin"
+                                      ).length === 1)
+                                  }
                                 >
-                                  <Settings className="h-4 w-4" />
+                                  {updateMemberRoleMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Settings className="h-4 w-4" />
+                                  )}
                                 </Button>
                                 {/* Nút xóa thành viên (chỉ được xóa nếu không phải admin duy nhất) */}
-                                {(member.role !== 'admin' || (member.role === 'admin' && activeGroup.members.filter(m => m.role === 'admin').length > 1)) && (
+                                {/* Thêm điều kiện: Không thể xóa chính mình (cần ID người dùng hiện tại) */}
+                                {(member.role !== "admin" ||
+                                  (member.role === "admin" &&
+                                    activeGroup.members.filter(
+                                      (m) => m.role === "admin"
+                                    ).length > 1)) && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleRemoveMember(member.user._id)}
+                                    onClick={() =>
+                                      handleRemoveMember(member.user._id)
+                                    }
                                     className="text-red-500 hover:text-red-700"
-                                    disabled={removeMemberMutation.status === 'pending'}
+                                    disabled={removeMemberMutation.isPending}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -337,8 +447,9 @@ const Family = () => {
                         </div>
                       ))
                     ) : (
-                      <p className="text-gray-500">Chưa có thành viên nào trong nhóm này.
-                        {currentUserRole === 'admin' && " Hãy mời một người!"}
+                      <p className="text-gray-500">
+                        Chưa có thành viên nào trong nhóm này.
+                        {currentUserRole === "admin" && " Hãy mời một người!"}
                       </p>
                     )}
                   </div>
@@ -346,7 +457,7 @@ const Family = () => {
               </Card>
 
               {/* Invite New Member - CHỈ HIỂN THỊ NẾU currentUserRole LÀ 'admin' */}
-              {currentUserRole === 'admin' && (
+              {currentUserRole === "admin" && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
@@ -362,10 +473,12 @@ const Family = () => {
                       </Button>
                     </CardTitle>
                     {showInviteForm && (
-                      <CardContent className="pt-4"> {/* Đã chuyển CardContent vào đây */}
+                      <CardContent className="pt-4">
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label htmlFor="invite-email">Email người dùng</Label>
+                            <Label htmlFor="invite-email">
+                              Email người dùng
+                            </Label>
                             <Input
                               id="invite-email"
                               type="email"
@@ -374,12 +487,21 @@ const Family = () => {
                               onChange={(e) => setInviteEmail(e.target.value)}
                             />
                           </div>
-                          <Button onClick={handleSendInvite} className="w-full" disabled={inviteMemberMutation.status === 'pending'}>
-                            {inviteMemberMutation.status === 'pending' ? 'Đang gửi...' : 'Gửi lời mời'}
+                          <Button
+                            onClick={handleSendInvite}
+                            className="w-full"
+                            disabled={inviteMemberMutation.isPending}
+                          >
+                            {inviteMemberMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Gửi lời mời"
+                            )}
                           </Button>
                           {inviteMemberMutation.isError && (
                             <p className="text-red-500 text-sm">
-                              {inviteMemberMutation.error?.message || "Lỗi khi gửi lời mời."}
+                              {inviteMemberMutation.error?.message ||
+                                "Lỗi khi gửi lời mời."}
                             </p>
                           )}
                         </div>
@@ -405,11 +527,14 @@ const Family = () => {
         </TabsContent>
       </Tabs>
 
-      {!activeGroup && familyGroups && familyGroups.length === 0 && !showCreateGroupForm && (
-        <div className="text-center py-8 text-gray-500">
-          Bạn chưa thuộc bất kỳ nhóm gia đình nào. Hãy tạo một nhóm mới!
-        </div>
-      )}
+      {!activeGroup &&
+        familyGroups &&
+        familyGroups.length === 0 &&
+        !showCreateGroupForm && (
+          <div className="text-center py-8 text-gray-500">
+            Bạn chưa thuộc bất kỳ nhóm gia đình nào. Hãy tạo một nhóm mới!
+          </div>
+        )}
     </div>
   );
 };

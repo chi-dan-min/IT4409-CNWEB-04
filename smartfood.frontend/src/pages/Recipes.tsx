@@ -1,5 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useMemo } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +26,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChefHat, Clock, Users, Search, Refrigerator, Star, Plus, X } from "lucide-react";
+import {
+  ChefHat,
+  Clock,
+  Users,
+  Search,
+  Refrigerator,
+  Star,
+  Plus,
+  X,
+  Loader2,
+} from "lucide-react";
+
+// REACT QUERY IMPORTS
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   getRecipes,
@@ -29,20 +48,26 @@ import {
   NewRecipeData,
   IngredientItem,
   RecipeData,
-  SuggestedRecipe
+  SuggestedRecipe,
 } from "@/services/recipeService";
-import { getUserInfo } from '../utils/auth'; // Đảm bảo đường dẫn đúng
+import { getUserInfo } from "../utils/auth"; // Đảm bảo đường dẫn đúng
 
 // --- Component con: OverviewCards ---
-// Truyền thêm prop isUserAdmin vào đây
-const OverviewCards = ({ recipes, canMakeRecipesCount, smartSuggestedRecipesLength, isUserAdmin }) => (
+const OverviewCards = ({
+  recipes,
+  canMakeRecipesCount,
+  smartSuggestedRecipesLength,
+  isUserAdmin,
+}) => (
   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
     <Card className="border border-blue-200 shadow-sm bg-blue-50">
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-blue-700">Tổng công thức</p>
-            <p className="text-3xl font-bold text-blue-900 mt-1">{recipes.length}</p>
+            <p className="text-3xl font-bold text-blue-900 mt-1">
+              {recipes.length}
+            </p>
           </div>
           <ChefHat className="h-8 w-8 text-blue-600" />
         </div>
@@ -55,8 +80,12 @@ const OverviewCards = ({ recipes, canMakeRecipesCount, smartSuggestedRecipesLeng
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-700">Có thể nấu ngay</p>
-              <p className="text-3xl font-bold text-green-900 mt-1">{canMakeRecipesCount}</p>
+              <p className="text-sm font-medium text-green-700">
+                Có thể nấu ngay
+              </p>
+              <p className="text-3xl font-bold text-green-900 mt-1">
+                {canMakeRecipesCount}
+              </p>
             </div>
             <Refrigerator className="h-8 w-8 text-green-600" />
           </div>
@@ -70,8 +99,12 @@ const OverviewCards = ({ recipes, canMakeRecipesCount, smartSuggestedRecipesLeng
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-purple-700">Gợi ý thông minh</p>
-              <p className="text-3xl font-bold text-purple-900 mt-1">{smartSuggestedRecipesLength}</p>
+              <p className="text-sm font-medium text-purple-700">
+                Gợi ý thông minh
+              </p>
+              <p className="text-3xl font-bold text-purple-900 mt-1">
+                {smartSuggestedRecipesLength}
+              </p>
             </div>
             <Star className="h-8 w-8 text-purple-600" />
           </div>
@@ -82,85 +115,143 @@ const OverviewCards = ({ recipes, canMakeRecipesCount, smartSuggestedRecipesLeng
 );
 
 // --- Component con: RecipeList ---
-// Giữ nguyên RecipeList vì việc ẩn thông tin suggestion sẽ được xử lý ở component cha Recipes
-const RecipeList = ({ title, description, recipesToDisplay, suggestedRecipes, handleViewRecipeDetail }) => {
+const RecipeList = ({
+  title,
+  description,
+  recipesToDisplay,
+  suggestedRecipes,
+  handleViewRecipeDetail,
+  isLoading,
+}) => {
   const [showAll, setShowAll] = useState(false);
   const initialDisplayLimit = 3;
 
-  const recipesToShow = showAll ? recipesToDisplay : recipesToDisplay.slice(0, initialDisplayLimit);
+  const recipesToShow = showAll
+    ? recipesToDisplay
+    : recipesToDisplay.slice(0, initialDisplayLimit);
   const hasMoreRecipes = recipesToDisplay.length > initialDisplayLimit;
+
+  if (isLoading) {
+    return (
+      <Card className="border border-gray-200 shadow-sm">
+        <CardContent className="p-8 text-center text-gray-500">
+          <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+          Đang tải công thức...
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border border-gray-200 shadow-sm">
       <CardHeader className="bg-white p-3 border-b border-gray-100">
         <CardTitle className="flex items-center gap-1 text-lg font-semibold text-gray-800">
-          {title.includes("Gợi ý thông minh") ? <Star className="h-4 w-4 text-purple-600" /> : <ChefHat className="h-4 w-4 text-gray-700" />}
+          {title.includes("Gợi ý thông minh") ? (
+            <Star className="h-4 w-4 text-purple-600" />
+          ) : (
+            <ChefHat className="h-4 w-4 text-gray-700" />
+          )}
           {title}
         </CardTitle>
-        <CardDescription className="text-gray-600 text-xs">{description}</CardDescription>
+        <CardDescription className="text-gray-600 text-xs">
+          {description}
+        </CardDescription>
       </CardHeader>
       <CardContent className="p-4">
         {recipesToDisplay.length === 0 ? (
-          <p className="text-gray-500 text-center py-3 text-sm">Không tìm thấy công thức nào.</p>
+          <p className="text-gray-500 text-center py-3 text-sm">
+            Không tìm thấy công thức nào.
+          </p>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {recipesToShow.map((recipe) => {
-                // Lấy thông tin gợi ý chỉ khi cần
-                const suggestion = suggestedRecipes?.find(s => s._id === recipe._id);
-                const availableIngredients = suggestion?.availableIngredients || [];
+                const suggestion = suggestedRecipes?.find(
+                  (s) => s._id === recipe._id
+                );
+                const availableIngredients =
+                  suggestion?.availableIngredients || [];
                 const missingIngredients = suggestion?.missingIngredients || [];
 
-                const shortDescription = recipe.description && recipe.description.length > 70
-                  ? recipe.description.substring(0, 70) + "..."
-                  : recipe.description;
+                const shortDescription =
+                  recipe.description && recipe.description.length > 70
+                    ? recipe.description.substring(0, 70) + "..."
+                    : recipe.description;
 
                 const difficultyClasses = {
-                  "Dễ": "bg-green-100 text-green-700 border-green-200",
-                  "Trung bình": "bg-yellow-100 text-yellow-700 border-yellow-200",
-                  "Khó": "bg-red-100 text-red-700 border-red-200"
+                  Dễ: "bg-green-100 text-green-700 border-green-200",
+                  "Trung bình":
+                    "bg-yellow-100 text-yellow-700 border-yellow-200",
+                  Khó: "bg-red-100 text-red-700 border-red-200",
                 };
 
                 return (
-                  <Card key={recipe._id} className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border border-gray-100">
+                  <Card
+                    key={recipe._id}
+                    className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border border-gray-100"
+                  >
                     <CardContent className="p-4">
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="text-3xl">{recipe.image}</div>
-                          <Badge variant="outline" className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200">{recipe.category}</Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200"
+                          >
+                            {recipe.category}
+                          </Badge>
                         </div>
 
                         <div>
-                          <h4 className="font-bold text-base text-gray-900">{recipe.name}</h4>
-                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">{shortDescription || "Không có mô tả."}</p>
+                          <h4 className="font-bold text-base text-gray-900">
+                            {recipe.name}
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                            {shortDescription || "Không có mô tả."}
+                          </p>
                         </div>
 
                         <div className="flex flex-wrap gap-1 text-xs">
-                          <Badge variant="secondary" className="flex items-center gap-1 bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5">
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-1 bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5"
+                          >
                             <Clock className="h-3 w-3" />
                             {recipe.cookTime}
                           </Badge>
-                          <Badge variant="secondary" className="flex items-center gap-1 bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5">
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-1 bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5"
+                          >
                             <Users className="h-3 w-3" />
                             {recipe.servings} người
                           </Badge>
-                          <Badge variant="secondary" className="flex items-center gap-1 bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5">
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-1 bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5"
+                          >
                             <Star className="h-3 w-3 text-yellow-500" />
                             {recipe.rating}
                           </Badge>
                           <Badge
-                            className={`text-xs px-2 py-0.5 ${difficultyClasses[recipe.difficulty]}`}
+                            className={`text-xs px-2 py-0.5 ${
+                              difficultyClasses[recipe.difficulty]
+                            }`}
                           >
                             {recipe.difficulty}
                           </Badge>
                         </div>
 
-                        {/* HIỂN THỊ THÔNG TIN NGUYÊN LIỆU CÓ SẴN/THIẾU CHỈ KHI KHÔNG PHẢI ADMIN */}
-                        {(availableIngredients.length > 0 || missingIngredients.length > 0) && (
+                        {/* HIỂN THỊ THÔNG TIN NGUYÊN LIỆU CÓ SẴN/THIẾU CHỈ KHI CÓ suggestion */}
+                        {(availableIngredients.length > 0 ||
+                          missingIngredients.length > 0) && (
                           <div className="space-y-1 text-xs p-2 bg-gray-50 rounded-md border border-gray-100">
                             {availableIngredients.length > 0 && (
                               <div>
-                                <p className="font-medium text-green-700 flex items-center gap-1"><Refrigerator className="h-3 w-3" /> Có sẵn ({availableIngredients.length}):</p>
+                                <p className="font-medium text-green-700 flex items-center gap-1">
+                                  <Refrigerator className="h-3 w-3" /> Có sẵn (
+                                  {availableIngredients.length}):
+                                </p>
                                 <p className="text-green-600 mt-0.5">
                                   {availableIngredients.slice(0, 2).join(", ")}
                                   {availableIngredients.length > 2 && "..."}
@@ -169,7 +260,10 @@ const RecipeList = ({ title, description, recipesToDisplay, suggestedRecipes, ha
                             )}
                             {missingIngredients.length > 0 && (
                               <div>
-                                <p className="font-medium text-red-700 flex items-center gap-1"><Plus className="h-3 w-3" /> Cần mua ({missingIngredients.length}):</p>
+                                <p className="font-medium text-red-700 flex items-center gap-1">
+                                  <Plus className="h-3 w-3" /> Cần mua (
+                                  {missingIngredients.length}):
+                                </p>
                                 <p className="text-red-600 mt-0.5">
                                   {missingIngredients.slice(0, 2).join(", ")}
                                   {missingIngredients.length > 2 && "..."}
@@ -179,7 +273,11 @@ const RecipeList = ({ title, description, recipesToDisplay, suggestedRecipes, ha
                           </div>
                         )}
 
-                        <Button size="sm" className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white text-xs" onClick={() => handleViewRecipeDetail(recipe)}>
+                        <Button
+                          size="sm"
+                          className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                          onClick={() => handleViewRecipeDetail(recipe)}
+                        >
                           Xem chi tiết
                         </Button>
                       </div>
@@ -190,8 +288,16 @@ const RecipeList = ({ title, description, recipesToDisplay, suggestedRecipes, ha
             </div>
             {hasMoreRecipes && (
               <div className="flex justify-center mt-4">
-                <Button variant="outline" onClick={() => setShowAll(!showAll)} className="px-4 py-1.5 border-gray-300 hover:bg-gray-100 text-sm">
-                  {showAll ? "Thu gọn" : `Xem thêm ${recipesToDisplay.length - initialDisplayLimit} công thức`}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAll(!showAll)}
+                  className="px-4 py-1.5 border-gray-300 hover:bg-gray-100 text-sm"
+                >
+                  {showAll
+                    ? "Thu gọn"
+                    : `Xem thêm ${
+                        recipesToDisplay.length - initialDisplayLimit
+                      } công thức`}
                 </Button>
               </div>
             )}
@@ -202,8 +308,7 @@ const RecipeList = ({ title, description, recipesToDisplay, suggestedRecipes, ha
   );
 };
 
-// --- Component con: AddRecipeDialog ---
-// Giữ nguyên AddRecipeDialog
+// --- Component con: AddRecipeDialog (Giữ nguyên) ---
 const AddRecipeDialog = ({
   showAddRecipeDialog,
   setShowAddRecipeDialog,
@@ -215,12 +320,14 @@ const AddRecipeDialog = ({
   handleAddIngredient,
   handleRemoveIngredient,
   handleCreateRecipe,
-  loading
+  isCreating,
 }) => (
   <Dialog open={showAddRecipeDialog} onOpenChange={setShowAddRecipeDialog}>
     <DialogContent className="sm:max-w-[600px] md:max-w-[700px] max-h-[85vh] overflow-y-auto p-5 bg-white shadow-xl rounded-lg">
       <DialogHeader className="border-b pb-3 mb-3">
-        <DialogTitle className="text-2xl font-bold text-gray-900">Thêm công thức mới</DialogTitle>
+        <DialogTitle className="text-2xl font-bold text-gray-900">
+          Thêm công thức mới
+        </DialogTitle>
         <DialogDescription className="text-gray-600 text-sm">
           Điền thông tin chi tiết cho công thức nấu ăn của bạn.
         </DialogDescription>
@@ -228,7 +335,10 @@ const AddRecipeDialog = ({
       <div className="grid gap-4 py-3 md:grid-cols-2 text-sm">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="name" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="name"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Tên công thức
             </Label>
             <Input
@@ -240,7 +350,10 @@ const AddRecipeDialog = ({
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="description" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="description"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Mô tả
             </Label>
             <Textarea
@@ -252,7 +365,10 @@ const AddRecipeDialog = ({
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="instructions" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="instructions"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Hướng dẫn
             </Label>
             <Textarea
@@ -264,7 +380,10 @@ const AddRecipeDialog = ({
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="image" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="image"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Hình ảnh (emoji)
             </Label>
             <Input
@@ -277,7 +396,10 @@ const AddRecipeDialog = ({
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="category" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="category"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Danh mục
             </Label>
             <Input
@@ -293,7 +415,10 @@ const AddRecipeDialog = ({
 
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="cookTime" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="cookTime"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Thời gian nấu
             </Label>
             <Input
@@ -306,7 +431,10 @@ const AddRecipeDialog = ({
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="servings" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="servings"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Số người ăn
             </Label>
             <Input
@@ -320,7 +448,10 @@ const AddRecipeDialog = ({
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="rating" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="rating"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Đánh giá (0-5)
             </Label>
             <Input
@@ -336,7 +467,10 @@ const AddRecipeDialog = ({
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-1.5">
-            <Label htmlFor="difficulty" className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs">
+            <Label
+              htmlFor="difficulty"
+              className="md:col-span-1 text-left md:text-right font-medium text-gray-700 text-xs"
+            >
               Độ khó
             </Label>
             <Select
@@ -356,34 +490,67 @@ const AddRecipeDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-left font-semibold text-gray-700 block text-xs">Nguyên liệu</Label>
+            <Label className="text-left font-semibold text-gray-700 block text-xs">
+              Nguyên liệu
+            </Label>
             <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
               <Input
                 placeholder="Tên"
                 value={newIngredient.name}
-                onChange={(e) => setNewIngredient(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setNewIngredient((prev) => ({
+                    ...prev,
+                    name: e.target.value,
+                  }))
+                }
                 className="sm:col-span-2 border-gray-300 focus:ring-blue-400 text-sm"
               />
               <Input
                 type="number"
                 placeholder="Số lượng"
-                value={newIngredient.quantity === 0 ? "" : newIngredient.quantity}
-                onChange={(e) => setNewIngredient(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                value={
+                  newIngredient.quantity === 0 ? "" : newIngredient.quantity
+                }
+                onChange={(e) =>
+                  setNewIngredient((prev) => ({
+                    ...prev,
+                    quantity: Number(e.target.value),
+                  }))
+                }
                 className="sm:col-span-1 border-gray-300 focus:ring-blue-400 text-sm"
                 min="0"
               />
               <Input
                 placeholder="Đơn vị"
                 value={newIngredient.unit}
-                onChange={(e) => setNewIngredient(prev => ({ ...prev, unit: e.target.value }))}
+                onChange={(e) =>
+                  setNewIngredient((prev) => ({
+                    ...prev,
+                    unit: e.target.value,
+                  }))
+                }
                 className="sm:col-span-1 border-gray-300 focus:ring-blue-400 text-sm"
               />
-              <Button onClick={handleAddIngredient} size="sm" className="sm:col-span-1 bg-blue-500 hover:bg-blue-600 text-white text-xs py-1.5">Thêm</Button>
+              <Button
+                onClick={handleAddIngredient}
+                size="sm"
+                className="sm:col-span-1 bg-blue-500 hover:bg-blue-600 text-white text-xs py-1.5"
+              >
+                Thêm
+              </Button>
             </div>
             <div className="space-y-1 mt-1 flex flex-wrap gap-1 p-1.5 bg-gray-50 rounded-md border border-gray-100">
-              {newRecipeData.ingredients.length === 0 && <p className="text-gray-500 text-xs">Chưa có nguyên liệu nào.</p>}
+              {newRecipeData.ingredients.length === 0 && (
+                <p className="text-gray-500 text-xs">
+                  Chưa có nguyên liệu nào.
+                </p>
+              )}
               {newRecipeData.ingredients.map((ing, index) => (
-                <Badge key={index} variant="secondary" className="flex items-center bg-blue-100 text-blue-800 border-blue-200 text-xs">
+                <Badge
+                  key={index}
+                  variant="secondary"
+                  className="flex items-center bg-blue-100 text-blue-800 border-blue-200 text-xs"
+                >
                   {ing.name} ({ing.quantity} {ing.unit})
                   <Button
                     variant="ghost"
@@ -391,7 +558,7 @@ const AddRecipeDialog = ({
                     className="h-4 w-4 ml-1 p-0 text-blue-600 hover:bg-blue-200"
                     onClick={() => handleRemoveIngredient(index)}
                   >
-                    <X className="h-3 w-3"/>
+                    <X className="h-3 w-3" />
                   </Button>
                 </Badge>
               ))}
@@ -400,64 +567,110 @@ const AddRecipeDialog = ({
         </div>
       </div>
       <DialogFooter className="pt-3 border-t mt-3">
-        <Button variant="outline" onClick={() => setShowAddRecipeDialog(false)} className="px-4 py-1.5 rounded-md text-gray-700 border-gray-300 hover:bg-gray-100 text-sm">Hủy</Button>
-        <Button onClick={handleCreateRecipe} className="px-4 py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-sm" disabled={loading}>
-          {loading ? 'Đang tạo...' : 'Tạo công thức'}
+        <Button
+          variant="outline"
+          onClick={() => setShowAddRecipeDialog(false)}
+          className="px-4 py-1.5 rounded-md text-gray-700 border-gray-300 hover:bg-gray-100 text-sm"
+        >
+          Hủy
+        </Button>
+        <Button
+          onClick={handleCreateRecipe}
+          className="px-4 py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-sm"
+          disabled={isCreating}
+        >
+          {isCreating ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            "Tạo công thức"
+          )}
         </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 );
 
-// --- Component con: RecipeDetailDialog ---
-// Giữ nguyên RecipeDetailDialog
+// --- Component con: RecipeDetailDialog (Giữ nguyên) ---
 const RecipeDetailDialog = ({
   showRecipeDetailDialog,
   setShowRecipeDetailDialog,
-  selectedRecipeDetail
+  selectedRecipeDetail,
 }) => (
-  <Dialog open={showRecipeDetailDialog} onOpenChange={setShowRecipeDetailDialog}>
+  <Dialog
+    open={showRecipeDetailDialog}
+    onOpenChange={setShowRecipeDetailDialog}
+  >
     <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto p-5 bg-white shadow-xl rounded-lg">
       <DialogHeader className="border-b pb-3 mb-3">
         <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <span className="text-3xl">{selectedRecipeDetail.image}</span> {selectedRecipeDetail.name}
+          <span className="text-3xl">{selectedRecipeDetail.image}</span>{" "}
+          {selectedRecipeDetail.name}
         </DialogTitle>
-        <DialogDescription className="text-gray-600 text-sm mt-1">{selectedRecipeDetail.description || "Không có mô tả chi tiết."}</DialogDescription>
+        <DialogDescription className="text-gray-600 text-sm mt-1">
+          {selectedRecipeDetail.description || "Không có mô tả chi tiết."}
+        </DialogDescription>
       </DialogHeader>
       <div className="py-3 space-y-4">
         <div className="flex flex-wrap gap-2 text-xs">
-          <Badge variant="secondary" className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 border-gray-200 rounded-md">
-            <Clock className="h-3.5 w-3.5" /> <span className="font-medium">Thời gian nấu:</span> {selectedRecipeDetail.cookTime}
+          <Badge
+            variant="secondary"
+            className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 border-gray-200 rounded-md"
+          >
+            <Clock className="h-3.5 w-3.5" />{" "}
+            <span className="font-medium">Thời gian nấu:</span>{" "}
+            {selectedRecipeDetail.cookTime}
           </Badge>
-          <Badge variant="secondary" className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 border-gray-200 rounded-md">
-            <Users className="h-3.5 w-3.5" /> <span className="font-medium">Phục vụ:</span> {selectedRecipeDetail.servings} người
+          <Badge
+            variant="secondary"
+            className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 border-gray-200 rounded-md"
+          >
+            <Users className="h-3.5 w-3.5" />{" "}
+            <span className="font-medium">Phục vụ:</span>{" "}
+            {selectedRecipeDetail.servings} người
           </Badge>
-          <Badge variant="secondary" className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 border-gray-200 rounded-md">
-            <Star className="h-3.5 w-3.5 text-yellow-500" /> <span className="font-medium">Đánh giá:</span> {selectedRecipeDetail.rating} / 5
+          <Badge
+            variant="secondary"
+            className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 border-gray-200 rounded-md"
+          >
+            <Star className="h-3.5 w-3.5 text-yellow-500" />{" "}
+            <span className="font-medium">Đánh giá:</span>{" "}
+            {selectedRecipeDetail.rating} / 5
           </Badge>
           <Badge
             className={`text-xs px-2.5 py-1 rounded-md ${
-              selectedRecipeDetail.difficulty === "Dễ" ? "bg-green-100 text-green-700 border-green-200" :
-              selectedRecipeDetail.difficulty === "Trung bình" ? "bg-yellow-100 text-yellow-700 border-yellow-200" :
-              "bg-red-100 text-red-700 border-red-200"
+              selectedRecipeDetail.difficulty === "Dễ"
+                ? "bg-green-100 text-green-700 border-green-200"
+                : selectedRecipeDetail.difficulty === "Trung bình"
+                ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                : "bg-red-100 text-red-700 border-red-200"
             }`}
           >
-            <span className="font-medium">Độ khó:</span> {selectedRecipeDetail.difficulty}
+            <span className="font-medium">Độ khó:</span>{" "}
+            {selectedRecipeDetail.difficulty}
           </Badge>
-          <Badge variant="outline" className="px-2.5 py-1 bg-blue-50 text-blue-700 border-blue-200 rounded-md">
-            <span className="font-medium">Danh mục:</span> {selectedRecipeDetail.category}
+          <Badge
+            variant="outline"
+            className="px-2.5 py-1 bg-blue-50 text-blue-700 border-blue-200 rounded-md"
+          >
+            <span className="font-medium">Danh mục:</span>{" "}
+            {selectedRecipeDetail.category}
           </Badge>
         </div>
 
         <div>
           <h4 className="font-bold text-lg mb-2 text-gray-800">Nguyên liệu:</h4>
           <ul className="list-disc list-inside text-gray-700 text-sm space-y-0.5">
-            {selectedRecipeDetail.ingredients.length === 0 && <p className="text-gray-500 italic text-sm">Không có thông tin nguyên liệu.</p>}
+            {selectedRecipeDetail.ingredients.length === 0 && (
+              <p className="text-gray-500 italic text-sm">
+                Không có thông tin nguyên liệu.
+              </p>
+            )}
             {selectedRecipeDetail.ingredients.map((ing, index) => (
               <li key={index} className="flex items-start">
                 <span className="mr-1.5">•</span>
                 <span>
-                  <span className="font-semibold">{ing.name}:</span> {ing.quantity} {ing.unit}
+                  <span className="font-semibold">{ing.name}:</span>{" "}
+                  {ing.quantity} {ing.unit}
                 </span>
               </li>
             ))}
@@ -466,23 +679,30 @@ const RecipeDetailDialog = ({
 
         <div>
           <h4 className="font-bold text-lg mb-2 text-gray-800">Hướng dẫn:</h4>
-          <p className="text-gray-700 whitespace-pre-wrap leading-normal text-sm">{selectedRecipeDetail.instructions || "Không có hướng dẫn chi tiết."}</p>
+          <p className="text-gray-700 whitespace-pre-wrap leading-normal text-sm">
+            {selectedRecipeDetail.instructions ||
+              "Không có hướng dẫn chi tiết."}
+          </p>
         </div>
       </div>
       <DialogFooter className="pt-3 border-t mt-3">
-        <Button onClick={() => setShowRecipeDetailDialog(false)} className="px-5 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm">Đóng</Button>
+        <Button
+          onClick={() => setShowRecipeDetailDialog(false)}
+          className="px-5 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm"
+        >
+          Đóng
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 );
 
-
 const Recipes = () => {
-  const [recipes, setRecipes] = useState<RecipeData[]>([]);
-  const [suggestedRecipes, setSuggestedRecipes] = useState<SuggestedRecipe[]>([]);
+  const queryClient = useQueryClient();
+
+  // --- Local States ---
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDifficulty, setSelectedDifficulty] = useState("all");
-  const [loading, setLoading] = useState(true);
   const [showAddRecipeDialog, setShowAddRecipeDialog] = useState(false);
   const [newRecipeData, setNewRecipeData] = useState<NewRecipeData>({
     name: "",
@@ -495,55 +715,59 @@ const Recipes = () => {
     ingredients: [],
     instructions: "",
     category: "",
+    favourite: false, // Thêm trường favourite
   });
-  const [newIngredient, setNewIngredient] = useState<IngredientItem>({ name: "", quantity: 0, unit: "" });
+  const [newIngredient, setNewIngredient] = useState<IngredientItem>({
+    name: "",
+    quantity: 0,
+    unit: "",
+  });
 
   const [showRecipeDetailDialog, setShowRecipeDetailDialog] = useState(false);
-  const [selectedRecipeDetail, setSelectedRecipeDetail] = useState<RecipeData | null>(null);
+  const [selectedRecipeDetail, setSelectedRecipeDetail] =
+    useState<RecipeData | null>(null);
 
-  // --- STATE ĐỂ LƯU VAI TRÒ NGƯỜI DÙNG ---
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Memoize fetch functions using useCallback
-  const fetchAllRecipes = useCallback(async () => {
-    try {
-      const params: { search?: string; difficulty?: string } = {};
-      if (searchTerm) params.search = searchTerm;
-      if (selectedDifficulty !== 'all') params.difficulty = selectedDifficulty;
+  // --- React Query Queries ---
 
-      const data: RecipeData[] = await getRecipes(params);
-      setRecipes(data);
-    } catch (error) {
-      console.error('Error fetching recipes:', error);
-    }
-  }, [searchTerm, selectedDifficulty]);
+  // Query Key phụ thuộc vào searchTerm và selectedDifficulty để fetch lại khi filter thay đổi
+  const recipeQueryKey = [
+    "recipes",
+    { search: searchTerm, difficulty: selectedDifficulty },
+  ];
 
-  const fetchSuggestedRecipesData = useCallback(async () => {
-    try {
-      const data: SuggestedRecipe[] = await getSuggestedRecipes();
-      setSuggestedRecipes(data);
-    } catch (error) {
-      console.error('Error fetching suggestions:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // 1. Fetch All/Filtered Recipes
+  const {
+    data: recipes = [],
+    isLoading: isLoadingRecipes,
+    isFetching: isFetchingRecipes,
+    error: recipeError,
+  } = useQuery<RecipeData[]>({
+    queryKey: recipeQueryKey,
+    queryFn: () =>
+      getRecipes({
+        search: searchTerm,
+        difficulty:
+          selectedDifficulty === "all" ? undefined : selectedDifficulty,
+      }),
+    staleTime: 1000 * 60, // Cache recipes cho 1 phút
+    placeholderData: (previousData) => previousData, // Giữ dữ liệu cũ khi đang fetch (search/filter)
+  });
 
-  useEffect(() => {
-    fetchAllRecipes();
-  }, [fetchAllRecipes]); // Dependency on memoized function
+  // 2. Fetch Suggested Recipes (Chỉ fetch nếu không phải admin)
+  const {
+    data: suggestedRecipes = [],
+    isLoading: isLoadingSuggestions,
+    error: suggestionError,
+  } = useQuery<SuggestedRecipe[]>({
+    queryKey: ["suggestedRecipes"],
+    queryFn: getSuggestedRecipes,
+    enabled: userRole !== "admin" && userRole !== null, // Chỉ kích hoạt khi vai trò được xác định và không phải admin
+    staleTime: 1000 * 60 * 5, // Cache suggestions cho 5 phút
+  });
 
-  // Fetch suggested recipes only if not admin
-  useEffect(() => {
-    if (userRole === null) return; // Wait until userRole is determined
-    if (userRole !== 'admin') {
-      fetchSuggestedRecipesData();
-    } else {
-      setLoading(false); // If admin, no need to fetch suggestions, just set loading to false
-    }
-  }, [userRole, fetchSuggestedRecipesData]); // Re-run when userRole changes
-
-  // --- useEffect ĐỂ LẤY VAI TRÒ NGƯỜI DÙNG TỪ LOCAL STORAGE ---
+  // --- Fetch User Role ---
   useEffect(() => {
     const userInfo = getUserInfo();
     if (userInfo && userInfo.role) {
@@ -553,29 +777,78 @@ const Recipes = () => {
     }
   }, []);
 
-  // Filter suggested recipes only if not admin
-  const smartSuggestedRecipes = userRole !== 'admin'
-    ? suggestedRecipes.filter(item =>
-        item.missingIngredients.length > 0 && item.missingIngredients.length <= 2
-      )
-    : [];
+  // --- Computed Data ---
+  const isUserAdmin = userRole === "admin";
+  const isComponentLoading =
+    isFetchingRecipes || isLoadingRecipes || userRole === null; // Hoặc isLoadingSuggestions nếu không phải admin
 
-  const canMakeRecipesCount = userRole !== 'admin'
-    ? suggestedRecipes.filter(item => item.missingIngredients.length === 0).length
-    : 0;
+  // Tính toán số lượng công thức gợi ý (sử dụng useMemo)
+  const smartSuggestedRecipes = useMemo(() => {
+    return isUserAdmin
+      ? []
+      : suggestedRecipes.filter(
+          (item) =>
+            item.missingIngredients.length > 0 &&
+            item.missingIngredients.length <= 2
+        );
+  }, [suggestedRecipes, isUserAdmin]);
 
-  const handleNewRecipeChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const canMakeRecipesCount = useMemo(() => {
+    return isUserAdmin
+      ? 0
+      : suggestedRecipes.filter((item) => item.missingIngredients.length === 0)
+          .length;
+  }, [suggestedRecipes, isUserAdmin]);
+
+  // --- Mutation: Create Recipe ---
+  const createRecipeMutation = useMutation({
+    mutationFn: (recipeData: NewRecipeData) => createRecipe(recipeData),
+    onSuccess: () => {
+      // Invalidate cả recipes (để hiển thị công thức mới) và suggestedRecipes (để cập nhật gợi ý)
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["suggestedRecipes"] });
+
+      // Reset form và đóng dialog
+      setNewRecipeData({
+        name: "",
+        description: "",
+        image: "🍳",
+        cookTime: "",
+        servings: 1,
+        rating: 0,
+        difficulty: "Dễ",
+        ingredients: [],
+        instructions: "",
+        category: "",
+        favourite: false,
+      });
+      setShowAddRecipeDialog(false);
+    },
+    onError: (error: any) => {
+      console.error("Lỗi khi tạo công thức:", error);
+      alert(`Lỗi khi tạo công thức: ${error.message || "Có lỗi xảy ra"}`);
+    },
+  });
+
+  // --- Handlers ---
+  const handleNewRecipeChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setNewRecipeData(prev => ({ ...prev, [name]: value }));
+    setNewRecipeData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSelectChange = (name: string, value: string) => {
-    setNewRecipeData(prev => ({ ...prev, [name]: value }));
+    setNewRecipeData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddIngredient = () => {
-    if (newIngredient.name && newIngredient.quantity > 0 && newIngredient.unit) {
-      setNewRecipeData(prev => ({
+    if (
+      newIngredient.name &&
+      newIngredient.quantity > 0 &&
+      newIngredient.unit
+    ) {
+      setNewRecipeData((prev) => ({
         ...prev,
         ingredients: [...prev.ingredients, newIngredient],
       }));
@@ -584,46 +857,22 @@ const Recipes = () => {
   };
 
   const handleRemoveIngredient = (indexToRemove: number) => {
-    setNewRecipeData(prev => ({
+    setNewRecipeData((prev) => ({
       ...prev,
-      ingredients: prev.ingredients.filter((_, index) => index !== indexToRemove),
+      ingredients: prev.ingredients.filter(
+        (_, index) => index !== indexToRemove
+      ),
     }));
   };
 
   const handleCreateRecipe = async () => {
-    try {
-      setLoading(true);
-      const recipeToCreate: NewRecipeData = {
-        ...newRecipeData,
-        servings: Number(newRecipeData.servings),
-        rating: Number(newRecipeData.rating),
-      };
-
-      await createRecipe(recipeToCreate);
-
-      // Re-fetch all data to ensure UI is up-to-date
-      await Promise.all([fetchAllRecipes(), userRole !== 'admin' ? fetchSuggestedRecipesData() : Promise.resolve()]);
-
-      setNewRecipeData({
-        name: "",
-        description: "",
-        image: "🍳",
-        cookTime: "",
-        favourite: false, // Thêm trường favourite
-        servings: 1,
-        rating: 0,
-        difficulty: "Dễ",
-        ingredients: [],
-        instructions: "",
-        category: "",
-      });
-      setShowAddRecipeDialog(false);
-    } catch (error: any) {
-      console.error("Lỗi khi tạo công thức:", error);
-      alert(`Lỗi khi tạo công thức: ${error.message || 'Có lỗi xảy ra'}`);
-    } finally {
-      setLoading(false);
-    }
+    const recipeToCreate: NewRecipeData = {
+      ...newRecipeData,
+      servings: Number(newRecipeData.servings),
+      rating: Number(newRecipeData.rating),
+    };
+    // Sử dụng mutation
+    createRecipeMutation.mutate(recipeToCreate);
   };
 
   const handleViewRecipeDetail = (recipe: RecipeData) => {
@@ -631,9 +880,22 @@ const Recipes = () => {
     setShowRecipeDetailDialog(true);
   };
 
-  // Hiển thị loading trong khi chờ vai trò người dùng được xác định hoặc dữ liệu được tải
-  if (userRole === null || loading) {
-    return <div className="p-6 text-center text-gray-600 text-sm">Đang tải dữ liệu...</div>;
+  // Hiển thị loading trong khi chờ vai trò người dùng được xác định
+  if (userRole === null) {
+    return (
+      <div className="p-6 text-center text-gray-600 text-sm">
+        Đang tải dữ liệu người dùng...
+      </div>
+    );
+  }
+
+  // Hiển thị loading khi fetch lần đầu (chỉ khi chưa có data)
+  if (isLoadingRecipes && recipes.length === 0) {
+    return (
+      <div className="p-6 text-center text-gray-600 text-sm">
+        Đang tải công thức...
+      </div>
+    );
   }
 
   return (
@@ -644,8 +906,11 @@ const Recipes = () => {
           Kho Công thức
         </h1>
         {/* --- NÚT THÊM CÔNG THỨC MỚI (CHỈ HIỂN THỊ CHO ADMIN) --- */}
-        {userRole === 'admin' && (
-          <Button onClick={() => setShowAddRecipeDialog(true)} className="flex items-center gap-1 px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm">
+        {isUserAdmin && (
+          <Button
+            onClick={() => setShowAddRecipeDialog(true)}
+            className="flex items-center gap-1 px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm"
+          >
             <Plus className="h-4 w-4" />
             Thêm công thức mới
           </Button>
@@ -660,17 +925,18 @@ const Recipes = () => {
         recipes={recipes}
         canMakeRecipesCount={canMakeRecipesCount}
         smartSuggestedRecipesLength={smartSuggestedRecipes.length}
-        isUserAdmin={userRole === 'admin'} // Truyền prop isUserAdmin
+        isUserAdmin={isUserAdmin}
       />
 
       {/* Smart Suggested Recipes Section (Ẩn toàn bộ phần này nếu là admin) */}
-      {userRole !== 'admin' && (
+      {userRole !== "admin" && (
         <RecipeList
           title="Gợi ý thông minh (Cần mua ít nguyên liệu)"
           description="Các món ăn bạn có thể nấu với việc mua thêm một vài nguyên liệu (thiếu tối đa 2 nguyên liệu)."
           recipesToDisplay={smartSuggestedRecipes}
           suggestedRecipes={suggestedRecipes}
           handleViewRecipeDetail={handleViewRecipeDetail}
+          isLoading={isLoadingSuggestions && suggestedRecipes.length === 0}
         />
       )}
 
@@ -691,7 +957,9 @@ const Recipes = () => {
               {["all", "Dễ", "Trung bình", "Khó"].map((difficulty) => (
                 <Button
                   key={difficulty}
-                  variant={selectedDifficulty === difficulty ? "default" : "outline"}
+                  variant={
+                    selectedDifficulty === difficulty ? "default" : "outline"
+                  }
                   size="sm"
                   className={`px-3 py-1.5 rounded-md ${
                     selectedDifficulty === difficulty
@@ -715,6 +983,7 @@ const Recipes = () => {
         recipesToDisplay={recipes}
         suggestedRecipes={suggestedRecipes}
         handleViewRecipeDetail={handleViewRecipeDetail}
+        isLoading={isComponentLoading && recipes.length === 0} // Chỉ hiển thị loading nếu không có data
       />
 
       {/* Dialog Thêm công thức mới */}
@@ -729,7 +998,7 @@ const Recipes = () => {
         handleAddIngredient={handleAddIngredient}
         handleRemoveIngredient={handleRemoveIngredient}
         handleCreateRecipe={handleCreateRecipe}
-        loading={loading}
+        isCreating={createRecipeMutation.isPending}
       />
 
       {/* Dialog hiển thị chi tiết công thức */}

@@ -1,10 +1,10 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_URL = 'http://localhost:5000/api/fooditems'; // Đảm bảo đây là địa chỉ API chính xác của bạn
+const API_URL = "http://localhost:5000/api/fooditems"; // Đảm bảo đây là địa chỉ API chính xác của bạn
 
 const getToken = () => {
   // Lấy token xác thực từ localStorage hoặc nơi bạn lưu trữ nó sau khi đăng nhập
-  return localStorage.getItem('userToken');
+  return localStorage.getItem("userToken");
 };
 
 const getConfig = () => {
@@ -44,13 +44,14 @@ const getFoodItems = async (): Promise<FoodItemData[]> => {
   return response.data;
 };
 
-
 /**
  * @desc Tạo một thực phẩm mới thủ công
  * @param foodItem Dữ liệu thực phẩm cần tạo
  * @returns Promise<FoodItemData>
  */
-const createFoodItem = async (foodItem: Omit<FoodItemData, '_id' | 'createdAt' | 'updatedAt' | 'isExpired'>): Promise<FoodItemData> => {
+const createFoodItem = async (
+  foodItem: Omit<FoodItemData, "_id" | "createdAt" | "updatedAt" | "isExpired">
+): Promise<FoodItemData> => {
   const response = await axios.post(API_URL, foodItem, getConfig());
   return response.data;
 };
@@ -61,8 +62,15 @@ const createFoodItem = async (foodItem: Omit<FoodItemData, '_id' | 'createdAt' |
  * @param updatedData Dữ liệu cập nhật
  * @returns Promise<FoodItemData>
  */
-const updateFoodItem = async (id: string, updatedData: Partial<Omit<FoodItemData, '_id' | 'createdAt' | 'updatedAt'>>): Promise<FoodItemData> => {
-  const response = await axios.put(`${API_URL}/${id}`, updatedData, getConfig());
+const updateFoodItem = async (
+  id: string,
+  updatedData: Partial<Omit<FoodItemData, "_id" | "createdAt" | "updatedAt">>
+): Promise<FoodItemData> => {
+  const response = await axios.put(
+    `${API_URL}/${id}`,
+    updatedData,
+    getConfig()
+  );
   return response.data;
 };
 
@@ -85,17 +93,30 @@ const getExpiringFoodItems = async (): Promise<FoodItemData[]> => {
   return response.data;
 };
 
-
-
 /**
  * @desc Thêm một thực phẩm vào tủ lạnh từ một mục trong danh sách mua sắm
  * @param data Chứa shoppingItemId, expiryDate và storageLocation
  * @returns Promise<FoodItemData>
  */
-const addFoodItemFromShoppingList = async (data: { shoppingItemId: string; expiryDate: string; storageLocation: string }): Promise<FoodItemData> => {
-  const response = await axios.post(`${API_URL}/from-shoppinglist`, data, getConfig());
+const addFoodItemFromShoppingList = async (data: {
+  shoppingItemId: string;
+  expiryDate: string;
+  storageLocation: string;
+}): Promise<FoodItemData> => {
+  const response = await axios.post(
+    `${API_URL}/from-shoppinglist`,
+    data,
+    getConfig()
+  );
   return response.data;
 };
 
 // Export tất cả các hàm để có thể sử dụng ở các component khác
-export { getFoodItems, createFoodItem, updateFoodItem, deleteFoodItem, getExpiringFoodItems, addFoodItemFromShoppingList };
+export {
+  getFoodItems,
+  createFoodItem,
+  updateFoodItem,
+  deleteFoodItem,
+  getExpiringFoodItems,
+  addFoodItemFromShoppingList,
+};

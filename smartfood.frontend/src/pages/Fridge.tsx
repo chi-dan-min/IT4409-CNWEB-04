@@ -1,91 +1,208 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react"; // Giữ useState cho form/filter
+// ⭐️ IMPORT REACT QUERY HOOKS
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Refrigerator, AlertTriangle, Calendar as CalendarIcon, Search, Trash2, Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Plus,
+  Refrigerator,
+  AlertTriangle,
+  Calendar as CalendarIcon,
+  Search,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 
 // Import API service và interface
-import { getFoodItems, createFoodItem, deleteFoodItem, updateFoodItem, FoodItemData } from "@/services/foodItemService";
+import {
+  getFoodItems,
+  createFoodItem,
+  deleteFoodItem,
+  // updateFoodItem, // Không dùng updateFoodItem trong scope này
+  FoodItemData,
+} from "@/services/foodItemService";
 
 // Định nghĩa kiểu dữ liệu cho Food Item trong frontend
-// Bổ sung các trường `Date` sau khi parse từ string nhận được từ API
 interface FridgeItem extends FoodItemData {
-  _id: string; // _id là bắt buộc khi lấy từ DB
+  _id: string;
   expiryDate: Date; // Đã parse thành Date object
   createdAt: Date; // Đã parse thành Date object
   updatedAt: Date; // Đã parse thành Date object
 }
 
+// ⭐️ Định nghĩa Query Key
+const FRIDGE_ITEMS_QUERY_KEY = "fridgeItems";
+
 const Fridge = () => {
-  const [items, setItems] = useState<FridgeItem[]>([]);
+  // ⭐️ Khởi tạo Query Client để thao tác với cache
+  const queryClient = useQueryClient();
+
+  // ❌ Loại bỏ: const [items, setItems] = useState<FridgeItem[]>([]);
+  // ❌ Loại bỏ: const [isLoading, setIsLoading] = useState(true);
+  // ❌ Loại bỏ: const [error, setError] = useState<string | null>(null);
+
+  // Giữ nguyên State cho Form và Filter
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [isLoading, setIsLoading] = useState(true); // Trạng thái loading
-  const [error, setError] = useState<string | null>(null); // Trạng thái lỗi
-
   const [newItem, setNewItem] = useState({
     name: "",
-    quantity: "", // Vẫn là string để người dùng nhập "500"
+    quantity: "", // Vẫn là string
     unit: "",
     category: "",
     storageLocation: "",
     expiryDate: undefined as Date | undefined,
   });
 
-  const categories = ["Rau củ", "Thịt cá", "Sữa & trứng", "Đồ khô", "Gia vị", "Đồ uống", "Đồ đông lạnh", "Khác"];
-  // Điều chỉnh lại `locations` để khớp với `storageLocation` bạn đã định nghĩa trong backend
-  const locations = ["Tủ lạnh", "Tủ đông", "Kệ bếp", "Ngăn rau củ", "Cửa tủ lạnh", "Khác"];
-  const units = ["g", "kg", "ml", "lít", "cái", "bó", "hộp", "chai", "thanh", "túi"]; // Thêm các đơn vị phổ biến
+  // Data/Config cố định (Giữ nguyên)
+  const categories = [
+    "Rau củ",
 
-  // --- Hàm tải dữ liệu từ API ---
-  const fetchItems = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
+    "Thịt cá",
+
+    "Sữa & trứng",
+
+    "Đồ khô",
+
+    "Gia vị",
+
+    "Đồ uống",
+
+    "Đồ đông lạnh",
+
+    "Khác",
+  ];
+
+  // Điều chỉnh lại `locations` để khớp với `storageLocation` bạn đã định nghĩa trong backend
+
+  const locations = [
+    "Tủ lạnh",
+
+    "Tủ đông",
+
+    "Kệ bếp",
+
+    "Ngăn rau củ",
+
+    "Cửa tủ lạnh",
+
+    "Khác",
+  ];
+
+  const units = [
+    "g",
+
+    "kg",
+
+    "ml",
+
+    "lít",
+
+    "cái",
+
+    "bó",
+
+    "hộp",
+
+    "chai",
+
+    "thanh",
+
+    "túi",
+  ]; // Thêm các đơn vị phổ biến
+
+  // --- ⭐️ 1. Lấy dữ liệu (READ) bằng useQuery ---
+  const {
+    data: items, // Đổi tên data thành items
+    isLoading, // Trạng thái tải từ useQuery
+    error, // Lỗi từ useQuery
+  } = useQuery({
+    queryKey: [FRIDGE_ITEMS_QUERY_KEY],
+    queryFn: async () => {
       const data = await getFoodItems();
-      // Chuyển đổi expiryDate, createdAt, updatedAt từ string ISO sang Date object
-      const parsedItems: FridgeItem[] = data.map((item: FoodItemData) => ({
+      // Chuyển đổi string thành Date object (Parsing)
+      return data.map((item) => ({
         ...item,
-        _id: item._id!, // Đảm bảo _id tồn tại khi đã nhận từ API
+        _id: item._id!,
         expiryDate: new Date(item.expiryDate),
         createdAt: new Date(item.createdAt!),
         updatedAt: new Date(item.updatedAt!),
-      }));
-      setItems(parsedItems);
-    } catch (err: any) {
-      console.error("Lỗi khi tải thực phẩm:", err);
-      // Hiển thị thông báo lỗi chi tiết hơn nếu có từ backend
-      setError(err.response?.data?.message || "Không thể tải thực phẩm từ tủ lạnh.");
+      })) as FridgeItem[];
+    },
+  });
+
+  // Sử dụng items hoặc mảng rỗng nếu chưa có data/error
+  const fridgeItems: FridgeItem[] = items || [];
+  const totalItems = fridgeItems.length;
+
+  // --- ⭐️ 2. Thao tác Thêm (CREATE) bằng useMutation ---
+  const addItemMutation = useMutation({
+    mutationFn: createFoodItem,
+    onSuccess: () => {
+      // Thành công: Yêu cầu React Query fetch lại data (Invalidation)
+      queryClient.invalidateQueries({ queryKey: [FRIDGE_ITEMS_QUERY_KEY] });
+
+      // Reset form
+      setNewItem({
+        name: "",
+        quantity: "",
+        unit: "",
+        category: "",
+        storageLocation: "",
+        expiryDate: undefined,
+      });
+      toast({
+        title: "Đã thêm thực phẩm",
+        description: "Thực phẩm đã được thêm vào tủ lạnh.",
+      });
+    },
+    onError: (err: any) => {
+      console.error("Lỗi khi thêm thực phẩm:", err);
       toast({
         title: "Lỗi",
-        description: err.response?.data?.message || "Không thể tải thực phẩm.",
+        description: err.response?.data?.message || "Không thể thêm thực phẩm.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+  });
 
-  // Tải dữ liệu khi component được mount
-  useEffect(() => {
-    fetchItems();
-  }, []);
-
-  // --- Hàm thêm thực phẩm mới ---
-  const addItem = async () => {
-    // Kiểm tra các trường bắt buộc
-    if (!newItem.name || !newItem.quantity || !newItem.unit || !newItem.storageLocation || !newItem.expiryDate) {
+  const addItem = () => {
+    // Kiểm tra các trường bắt buộc (Giữ nguyên logic kiểm tra)
+    if (
+      !newItem.name ||
+      !newItem.quantity ||
+      !newItem.unit ||
+      !newItem.storageLocation ||
+      !newItem.expiryDate
+    ) {
       toast({
         title: "Thiếu thông tin",
-        description: "Vui lòng điền đủ Tên, Số lượng, Đơn vị, Vị trí và Ngày hết hạn.",
+        description:
+          "Vui lòng điền đủ Tên, Số lượng, Đơn vị, Vị trí và Ngày hết hạn.",
         variant: "destructive",
       });
       return;
@@ -101,75 +218,54 @@ const Fridge = () => {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // Chuẩn bị dữ liệu gửi đi, expiryDate cần là ISO string để backend parse đúng
-      const foodItemToSend: Omit<FoodItemData, '_id' | 'createdAt' | 'updatedAt' | 'isExpired'> = {
-        name: newItem.name,
-        quantity: quantityNum,
-        unit: newItem.unit,
-        category: newItem.category || undefined, // Gửi undefined nếu là chuỗi rỗng
-        storageLocation: newItem.storageLocation,
-        expiryDate: newItem.expiryDate.toISOString(), // Chuyển Date object thành ISO string
-      };
-      
-      const createdItem = await createFoodItem(foodItemToSend);
-      // Sau khi thêm thành công, chuyển đổi lại Date object cho item vừa nhận từ API
-      const addedItemParsed: FridgeItem = {
-          ...createdItem,
-          _id: createdItem._id!,
-          expiryDate: new Date(createdItem.expiryDate),
-          createdAt: new Date(createdItem.createdAt!),
-          updatedAt: new Date(createdItem.updatedAt!),
-      }
-      setItems((prevItems) => [...prevItems, addedItemParsed]);
-      
-      // Reset form
-      setNewItem({ name: "", quantity: "", unit: "", category: "", storageLocation: "", expiryDate: undefined });
-      toast({
-        title: "Đã thêm thực phẩm",
-        description: `${newItem.name} đã được thêm vào tủ lạnh.`,
-      });
-    } catch (err: any) {
-      console.error("Lỗi khi thêm thực phẩm:", err);
-      setError(err.response?.data?.message || "Không thể thêm thực phẩm.");
-      toast({
-        title: "Lỗi",
-        description: err.response?.data?.message || "Không thể thêm thực phẩm.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // Chuẩn bị dữ liệu gửi đi
+    const foodItemToSend: Omit<
+      FoodItemData,
+      "_id" | "createdAt" | "updatedAt" | "isExpired"
+    > = {
+      name: newItem.name,
+      quantity: quantityNum,
+      unit: newItem.unit,
+      category: newItem.category || undefined,
+      storageLocation: newItem.storageLocation,
+      expiryDate: newItem.expiryDate.toISOString(), // Chuyển Date object thành ISO string
+    };
+
+    addItemMutation.mutate(foodItemToSend); // Kích hoạt mutation
   };
 
-  // --- Hàm xóa thực phẩm ---
-  const deleteItem = async (id: string) => { // id là string vì _id từ MongoDB
-    setIsLoading(true);
-    try {
-      await deleteFoodItem(id);
-      setItems((prevItems) => prevItems.filter(item => item._id !== id)); // Lọc theo _id để xóa khỏi UI
+  // --- ⭐️ 3. Thao tác Xóa (DELETE) bằng useMutation ---
+  const deleteItemMutation = useMutation({
+    mutationFn: deleteFoodItem,
+    onSuccess: () => {
+      // Thành công: Yêu cầu React Query fetch lại data
+      queryClient.invalidateQueries({ queryKey: [FRIDGE_ITEMS_QUERY_KEY] });
       toast({
         title: "Đã xóa thực phẩm",
         description: "Thực phẩm đã được xóa khỏi tủ lạnh.",
       });
-    } catch (err: any) {
+    },
+    onError: (err: any) => {
       console.error("Lỗi khi xóa thực phẩm:", err);
-      setError(err.response?.data?.message || "Không thể xóa thực phẩm.");
       toast({
         title: "Lỗi",
         description: err.response?.data?.message || "Không thể xóa thực phẩm.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
-    }
+    },
+  });
+
+  const deleteItem = (id: string) => {
+    deleteItemMutation.mutate(id); // Kích hoạt mutation
   };
 
-  // --- Logic tính toán ngày hết hạn và trạng thái ---
+  // ❌ Loại bỏ: Logic fetchItems và useEffect tải dữ liệu ban đầu
+  // ❌ Loại bỏ: useEffect(() => { fetchItems(); }, []);
+
+  // --- Logic tính toán ngày hết hạn và trạng thái (Giữ nguyên) ---
   const getDaysUntilExpiry = (expiryDate: Date) => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Đặt về đầu ngày để tính đúng số ngày
+    today.setHours(0, 0, 0, 0);
     const expiry = new Date(expiryDate);
     expiry.setHours(0, 0, 0, 0);
 
@@ -180,40 +276,74 @@ const Fridge = () => {
 
   const getExpiryStatus = (expiryDate: Date) => {
     const days = getDaysUntilExpiry(expiryDate);
-    if (days < 0) return { status: "expired", label: "Đã hết hạn", color: "destructive" };
-    if (days === 0) return { status: "today", label: "Hết hạn hôm nay", color: "destructive" };
-    if (days <= 3) return { status: "warning", label: `Còn ${days} ngày`, color: "destructive" };
-    if (days <= 7) return { status: "soon", label: `Còn ${days} ngày`, color: "default" };
+    if (days < 0)
+      return { status: "expired", label: "Đã hết hạn", color: "destructive" };
+    if (days === 0)
+      return {
+        status: "today",
+        label: "Hết hạn hôm nay",
+        color: "destructive",
+      };
+    if (days <= 3)
+      return {
+        status: "warning",
+        label: `Còn ${days} ngày`,
+        color: "destructive",
+      };
+    if (days <= 7)
+      return { status: "soon", label: `Còn ${days} ngày`, color: "default" };
     return { status: "good", label: `Còn ${days} ngày`, color: "secondary" };
   };
 
   // --- Lọc và tìm kiếm ---
-  const filteredItems = items.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
+  // Sử dụng fridgeItems thay cho items
+  const filteredItems = fridgeItems.filter((item) => {
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesCategory =
+      selectedCategory === "all" || item.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  // Items sắp hết hạn (trong 3 ngày tới hoặc hết hạn hôm nay)
-  const expiringItems = items.filter(item => getDaysUntilExpiry(item.expiryDate) <= 3 && getDaysUntilExpiry(item.expiryDate) >= 0);
-  const totalItems = items.length;
+  // Items sắp hết hạn (sử dụng fridgeItems)
+  const expiringItems = fridgeItems.filter(
+    (item) =>
+      getDaysUntilExpiry(item.expiryDate) <= 3 &&
+      getDaysUntilExpiry(item.expiryDate) >= 0
+  );
 
   // --- Hiển thị Trạng thái Loading/Error ---
+  // ⭐️ Sử dụng isLoading và error từ useQuery
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="ml-3 text-lg text-gray-700">Đang tải thực phẩm từ tủ lạnh...</p>
+        <p className="ml-3 text-lg text-gray-700">
+          Đang tải thực phẩm từ tủ lạnh...
+        </p>
       </div>
     );
   }
 
+  // ⭐️ Sử dụng error từ useQuery
   if (error) {
     return (
       <div className="text-center py-12 text-red-500">
         <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
-        <p className="text-xl">Đã xảy ra lỗi: {error}</p>
-        <Button onClick={fetchItems} className="mt-4">Thử lại</Button>
+        <p className="text-xl">
+          Đã xảy ra lỗi: {error.message || "Không thể tải dữ liệu."}
+        </p>
+        <Button
+          onClick={() =>
+            queryClient.invalidateQueries({
+              queryKey: [FRIDGE_ITEMS_QUERY_KEY],
+            })
+          }
+          className="mt-4"
+        >
+          Thử lại
+        </Button>
       </div>
     );
   }
@@ -236,7 +366,9 @@ const Fridge = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Tổng thực phẩm</p>
+                <p className="text-sm font-medium text-gray-600">
+                  Tổng thực phẩm
+                </p>
                 <p className="text-3xl font-bold text-gray-900">{totalItems}</p>
               </div>
               <Refrigerator className="h-8 w-8 text-blue-600" />
@@ -248,7 +380,9 @@ const Fridge = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Sắp hết hạn</p>
-                <p className="text-3xl font-bold text-orange-600">{expiringItems.length}</p>
+                <p className="text-3xl font-bold text-orange-600">
+                  {expiringItems.length}
+                </p>
               </div>
               <AlertTriangle className="h-8 w-8 text-orange-600" />
             </div>
@@ -260,7 +394,9 @@ const Fridge = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Danh mục</p>
                 {/* Sử dụng Set để đếm số danh mục duy nhất */}
-                <p className="text-3xl font-bold text-green-600">{new Set(items.map(item => item.category)).size}</p>
+                <p className="text-3xl font-bold text-green-600">
+                  {new Set(fridgeItems.map((item) => item.category)).size}
+                </p>
               </div>
               <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
                 <span className="text-green-600 font-bold">🥬</span>
@@ -289,7 +425,9 @@ const Fridge = () => {
                 id="name"
                 placeholder="Ví dụ: Cà chua"
                 value={newItem.name}
-                onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, name: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -299,12 +437,19 @@ const Fridge = () => {
                 type="number" // Đảm bảo input là số
                 placeholder="Ví dụ: 500"
                 value={newItem.quantity}
-                onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, quantity: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="unit">Đơn vị</Label>
-              <Select value={newItem.unit} onValueChange={(value) => setNewItem({ ...newItem, unit: value })}>
+              <Select
+                value={newItem.unit}
+                onValueChange={(value) =>
+                  setNewItem({ ...newItem, unit: value })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn đơn vị" />
                 </SelectTrigger>
@@ -319,7 +464,12 @@ const Fridge = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="storageLocation">Vị trí lưu trữ</Label>
-              <Select value={newItem.storageLocation} onValueChange={(value) => setNewItem({ ...newItem, storageLocation: value })}>
+              <Select
+                value={newItem.storageLocation}
+                onValueChange={(value) =>
+                  setNewItem({ ...newItem, storageLocation: value })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn vị trí" />
                 </SelectTrigger>
@@ -334,7 +484,12 @@ const Fridge = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Danh mục (Tùy chọn)</Label>
-              <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
+              <Select
+                value={newItem.category}
+                onValueChange={(value) =>
+                  setNewItem({ ...newItem, category: value })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn danh mục" />
                 </SelectTrigger>
@@ -351,16 +506,23 @@ const Fridge = () => {
               <Label>Ngày hết hạn</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {newItem.expiryDate ? format(newItem.expiryDate, "dd/MM/yyyy", { locale: vi }) : "Chọn ngày"}
+                    {newItem.expiryDate
+                      ? format(newItem.expiryDate, "dd/MM/yyyy", { locale: vi })
+                      : "Chọn ngày"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={newItem.expiryDate}
-                    onSelect={(date) => setNewItem({ ...newItem, expiryDate: date })}
+                    onSelect={(date) =>
+                      setNewItem({ ...newItem, expiryDate: date })
+                    }
                     initialFocus
                     className="pointer-events-auto"
                   />
@@ -368,8 +530,17 @@ const Fridge = () => {
               </Popover>
             </div>
           </div>
-          <Button onClick={addItem} className="w-full" disabled={isLoading}>
-            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+          {/* ⭐️ Sử dụng addItemMutation.isPending cho loading state */}
+          <Button
+            onClick={addItem}
+            className="w-full"
+            disabled={addItemMutation.isPending}
+          >
+            {addItemMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-2" />
+            )}
             Thêm vào tủ lạnh
           </Button>
         </CardContent>
@@ -390,7 +561,10 @@ const Fridge = () => {
                 />
               </div>
             </div>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select
+              value={selectedCategory}
+              onValueChange={setSelectedCategory}
+            >
               <SelectTrigger className="w-full md:w-48">
                 <SelectValue placeholder="Lọc theo danh mục" />
               </SelectTrigger>
@@ -421,7 +595,9 @@ const Fridge = () => {
               <div className="text-center py-12 text-gray-500">
                 <Refrigerator className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Không tìm thấy thực phẩm nào</p>
-                <p className="text-sm">Thử thay đổi bộ lọc hoặc thêm thực phẩm mới</p>
+                <p className="text-sm">
+                  Thử thay đổi bộ lọc hoặc thêm thực phẩm mới
+                </p>
               </div>
             ) : (
               filteredItems.map((item) => {
@@ -436,29 +612,40 @@ const Fridge = () => {
                         <div className="flex items-center gap-3 mb-2">
                           <h4 className="font-semibold text-lg">{item.name}</h4>
                           <Badge variant={expiryStatus.color as any}>
-                            {expiryStatus.status === "expired" ? "Hết hạn" : expiryStatus.label}
+                            {expiryStatus.status === "expired"
+                              ? "Hết hạn"
+                              : expiryStatus.label}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
                           <div>
-                            <span className="font-medium">Danh mục:</span> {item.category || "Chưa phân loại"}
+                            <span className="font-medium">Danh mục:</span>{" "}
+                            {item.category || "Chưa phân loại"}
                           </div>
                           <div>
-                            <span className="font-medium">Số lượng:</span> {item.quantity} {item.unit}
+                            <span className="font-medium">Số lượng:</span>{" "}
+                            {item.quantity} {item.unit}
                           </div>
                           <div>
-                            <span className="font-medium">Vị trí:</span> {item.storageLocation}
+                            <span className="font-medium">Vị trí:</span>{" "}
+                            {item.storageLocation}
                           </div>
                           <div>
-                            <span className="font-medium">Hết hạn:</span> {format(item.expiryDate, "dd/MM/yyyy", { locale: vi })}
+                            <span className="font-medium">Hết hạn:</span>{" "}
+                            {format(item.expiryDate, "dd/MM/yyyy", {
+                              locale: vi,
+                            })}
                           </div>
                         </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteItem(item._id!)} // Truyền _id để xóa
+                        // ⭐️ Sử dụng deleteItem với id
+                        onClick={() => deleteItem(item._id!)}
                         className="text-red-500 hover:text-red-700"
+                        // ⭐️ Disabled khi đang gửi API
+                        disabled={deleteItemMutation.isPending}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
