@@ -1,7 +1,7 @@
 // src/services/shoppingListService.ts
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api'; // Đổi thành URL gốc của API của bạn
+const API_BASE_URL = '/api'; // Đổi thành URL gốc của API của bạn
 
 // Tạo một instance Axios
 const api = axios.create({

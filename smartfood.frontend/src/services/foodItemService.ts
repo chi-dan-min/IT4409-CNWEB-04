@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/fooditems"; // Đảm bảo đây là địa chỉ API chính xác của bạn
+const API_URL = "/api/fooditems"; // Đảm bảo đây là địa chỉ API chính xác của bạn
 
 const getToken = () => {
   // Lấy token xác thực từ localStorage hoặc nơi bạn lưu trữ nó sau khi đăng nhập

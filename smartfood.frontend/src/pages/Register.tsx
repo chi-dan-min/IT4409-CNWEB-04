@@ -22,7 +22,7 @@ const Register = () => {
 
   const navigate = useNavigate();
 
-  const API_URL = "http://localhost:5000/api/auth/register";
+  const API_URL = "/api/auth/register";
 
   const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));

@@ -1,7 +1,7 @@
 // src/services/recipeService.ts
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/recipes'; // Đây là địa chỉ API cho các công thức nấu ăn
+const API_URL = '/api/recipes'; // Đây là địa chỉ API cho các công thức nấu ăn
 
 const getToken = () => {
     return localStorage.getItem('userToken');

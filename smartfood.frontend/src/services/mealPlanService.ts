@@ -64,8 +64,8 @@ export interface SuggestedMealData {
 }
 
 // --- API Configurations ---
-const API_URL = 'http://localhost:5000/api/mealplans';
-const RECIPE_API_URL = 'http://localhost:5000/api/recipes'; // Endpoint cho công thức
+const API_URL = '/api/mealplans';
+const RECIPE_API_URL = '/api/recipes'; // Endpoint cho công thức
 
 const getToken = (): string => {
     const token = localStorage.getItem('userToken');

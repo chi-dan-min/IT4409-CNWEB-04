@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Thay thế bằng URL backend của bạn
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api'; // Ví dụ nếu bạn dùng Vite
+const API_URL = import.meta.env.VITE_BACKEND_URL || '/api'; // Ví dụ nếu bạn dùng Vite
 
 // Lấy token từ localStorage (hoặc nơi bạn lưu trữ token)
 const getToken = () => {

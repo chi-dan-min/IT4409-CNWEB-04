@@ -20,7 +20,7 @@ const app = express();
 // Cấu hình CORS
 app.use(
   cors({
-    origin: "http://localhost:8080", // Đảm bảo rằng đây là địa chỉ frontend của bạn
+    origin: "http://localhost:4173", // Đảm bảo rằng đây là địa chỉ frontend của bạn
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })

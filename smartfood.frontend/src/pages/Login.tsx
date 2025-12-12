@@ -17,7 +17,7 @@ const Login = () => {
   const navigate = useNavigate(); // Khởi tạo useNavigate
 
   // Base URL của API backend của bạn
-  const API_URL = "http://localhost:5000/api/auth/login"; 
+  const API_URL = "/api/auth/login"; 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

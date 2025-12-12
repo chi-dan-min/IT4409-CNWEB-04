@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./smartfood.server
+    container_name: smartfood-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./smartfood.server/.env
+
+  frontend:
+    build: ./smartfood.frontend
+    container_name: smartfood-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
